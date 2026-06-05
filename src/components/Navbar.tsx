@@ -75,7 +75,18 @@ export default function Navbar({
   onBrandClick,
   onMenuClick
 }: NavbarProps) {
-  const [dynCategories, setDynCategories] = React.useState<string[]>(['All']);
+  const [dynCategories, setDynCategories] = React.useState<string[]>(() => {
+    const cached = localStorage.getItem('cached_categories');
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return ['All', ...parsed.map((c: any) => c.name)];
+        }
+      } catch (e) {}
+    }
+    return CATEGORIES;
+  });
 
   React.useEffect(() => {
     fetch('/api/categories')
@@ -84,12 +95,23 @@ export default function Navbar({
         if (data && Array.isArray(data) && data.length > 0) {
           const names = ['All', ...data.map((c: any) => c.name)];
           setDynCategories(names);
+          localStorage.setItem('cached_categories', JSON.stringify(data));
         } else {
           setDynCategories(CATEGORIES);
         }
       })
       .catch(err => {
         console.warn('Unable to get dynamic categories, using default list:', err);
+        const cached = localStorage.getItem('cached_categories');
+        if (cached) {
+          try {
+            const parsed = JSON.parse(cached);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              setDynCategories(['All', ...parsed.map((c: any) => c.name)]);
+              return;
+            }
+          } catch (e) {}
+        }
         setDynCategories(CATEGORIES);
       });
   }, [activeCategory]);

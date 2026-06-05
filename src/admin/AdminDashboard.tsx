@@ -72,6 +72,8 @@ export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin,
   // Announcements Ticker State
   const [announcements, setAnnouncements] = useState<string[]>([]);
   const [newAnnouncementText, setNewAnnouncementText] = useState('');
+  const [editingAnnounceIdx, setEditingAnnounceIdx] = useState<number | null>(null);
+  const [editingAnnounceText, setEditingAnnounceText] = useState('');
 
   // Coupon Form State
   const [couponForm, setCouponForm] = useState({
@@ -283,6 +285,7 @@ export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin,
       : [newProduct, ...products];
 
     setProducts(updatedList);
+    localStorage.setItem('cached_products', JSON.stringify(updatedList));
     onProductsUpdated(updatedList);
 
     if (isCloudSynced) {
@@ -359,6 +362,7 @@ export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin,
 
     const updatedList = products.filter(p => p.id !== id);
     setProducts(updatedList);
+    localStorage.setItem('cached_products', JSON.stringify(updatedList));
     onProductsUpdated(updatedList);
 
     if (isCloudSynced) {
@@ -531,6 +535,27 @@ export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin,
     }
   };
 
+  const handleSaveEditAnnouncement = async (index: number, nextText: string) => {
+    if (!nextText.trim()) return;
+    const nextList = [...announcements];
+    nextList[index] = nextText.trim();
+    try {
+      const res = await fetch('/api/announcements', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ announcements: nextList })
+      });
+      if (res.ok) {
+        setAnnouncements(nextList);
+        localStorage.setItem('cached_announcements', JSON.stringify(nextList));
+        setEditingAnnounceIdx(null);
+        alert("Dynamic header banner edited successfully!");
+      }
+    } catch (err) {
+      console.warn("Could not edit announcement ticker:", err);
+    }
+  };
+
   // Manage User Roles & Blacklist
   const handleToggleUserRole = async (email: string, currentRole: string) => {
     try {
@@ -666,6 +691,7 @@ export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin,
           {[
             { tag: '/admin/dashboard', label: 'Dashboard Control', icon: BarChart3 },
             { tag: '/admin/products', label: 'Products Catalog', icon: Box },
+            { tag: '/admin/categories', label: 'Categories Matrix', icon: Folder },
             { tag: '/admin/orders', label: 'Orders Register', icon: ShoppingBag },
             { tag: '/admin/users', label: 'Users & Roles', icon: Users },
             { tag: '/admin/coupons', label: 'Coupons Engine', icon: Ticket },
@@ -763,9 +789,9 @@ export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin,
             {currentPath === '/admin/dashboard' && (
               <div className="space-y-6">
                 {/* Stats Bento Grid Panel */}
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                   {[
-                    { label: 'Total Revenue', value: `$${analytics.summary.totalRevenue}`, desc: 'Paid clearings', icon: DollarSign, color: 'text-indigo-400 bg-indigo-505/10' },
+                    { label: 'Total Revenue', value: `$${analytics.summary.totalRevenue}`, desc: 'Paid clearings', icon: DollarSign, color: 'text-indigo-400 bg-indigo-500/10' },
                     { label: 'Total Orders', value: analytics.summary.totalOrders, desc: 'Registered transactions', icon: ShoppingBag, color: 'text-teal-400 bg-teal-500/10' },
                     { label: 'Today Sales', value: `$${analytics.summary.todaySales}`, desc: 'Daily clearings', icon: Activity, color: 'text-emerald-400 bg-emerald-500/10' },
                     { label: 'Live Accounts', value: analytics.summary.totalUsers, desc: 'Verified profile items', icon: Users, color: 'text-purple-400 bg-purple-500/10' },
@@ -774,14 +800,14 @@ export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin,
                     { label: 'Unique Products', value: products.length, desc: 'Active master designs', icon: Box, color: 'text-blue-400 bg-blue-500/10' },
                     { label: 'Category Count', value: categories.length || 7, desc: 'Taxonomy segments', icon: Folder, color: 'text-pink-400 bg-pink-500/10' }
                   ].map((statCard, index) => (
-                    <div key={index} className="bg-zinc-90 w-full p-4.5 rounded-2xl border border-zinc-850 flex items-center gap-4.5">
+                    <div key={index} className="bg-zinc-900 w-full p-4 rounded-2xl border border-zinc-800 flex items-center gap-4">
                       <div className={`p-3 rounded-xl shrink-0 ${statCard.color}`}>
                         <statCard.icon className="w-5 h-5" />
                       </div>
-                      <div>
-                        <p className="text-[10px] font-mono tracking-wider text-zinc-500 uppercase">{statCard.label}</p>
-                        <h4 className="text-lg font-sans font-black text-white mt-1 leading-none">{statCard.value}</h4>
-                        <p className="text-[10px] text-zinc-400 mt-1">{statCard.desc}</p>
+                      <div className="min-w-0">
+                        <p className="text-[10px] font-mono tracking-wider text-zinc-500 uppercase truncate">{statCard.label}</p>
+                        <h4 className="text-base sm:text-lg font-sans font-black text-white mt-1 leading-none">{statCard.value}</h4>
+                        <p className="text-[10px] text-zinc-400 mt-1 truncate">{statCard.desc}</p>
                       </div>
                     </div>
                   ))}
@@ -797,7 +823,7 @@ export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin,
                     </h3>
                     <div className="space-y-3.5">
                       {orders.filter(o => o.paymentStatus === 'pending').map((ord) => (
-                        <div key={ord.id} className="p-3 bg-zinc-950 border border-zinc-85 border-l-4 border-l-amber-500 rounded-xl flex items-center justify-between">
+                        <div key={ord.id} className="p-3 bg-zinc-950 border border-zinc-800 border-l-4 border-l-amber-500 rounded-xl flex items-center justify-between">
                           <div>
                             <p className="text-xs font-mono font-black text-white">{ord.id}</p>
                             <p className="text-[10px] text-zinc-400 mt-1">{ord.userEmail} &bull; <span className="font-mono">{ord.method}</span></p>
@@ -931,8 +957,8 @@ export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin,
             {/* 3. ROUTES: /admin/products/add & /admin/products/edit/:id */}
             {(currentPath === '/admin/products/add' || currentPath.startsWith('/admin/products/edit/')) && (
               <form onSubmit={handleSaveProduct} className="bg-zinc-900 border border-zinc-800 p-5 rounded-2xl max-w-3xl space-y-5">
-                <h3 className="text-sm font-mono font-black text-white tracking-widest uppercase border-b border-zinc-800 pb-3 block">
-                  {editingProductId ? "REVISE DIGITALLY INTEGRATED ARTIFACT" : "SEED NEW HIGH-PERFORMANCE SOURCE ARTIFACT"}
+                <h3 className="text-xs sm:text-sm font-sans font-black text-white tracking-wider uppercase border-b border-zinc-800 pb-3 block">
+                  {editingProductId ? "REVISE PRODUCT ARTIFACT" : "PUBLISH NEW SOURCE ASSET"}
                 </h3>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1032,13 +1058,37 @@ export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin,
 
                   {/* Package file size */}
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-mono tracking-widest text-zinc-400 block uppercase">Package Download size</label>
+                    <label className="text-[10px] font-mono tracking-widest text-zinc-400 block uppercase font-bold">Package Download size</label>
                     <input
                       type="text"
                       value={productForm.fileSize}
                       onChange={(e) => setProductForm({...productForm, fileSize: e.target.value})}
                       placeholder="e.g. 15.6 MB"
                       className="w-full p-2.5 bg-zinc-950 border border-zinc-800 rounded-xl outline-none focus:border-indigo-500 text-white text-xs"
+                    />
+                  </div>
+
+                  {/* Product version */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-mono tracking-widest text-[#a78bfa] block uppercase font-bold">Product Spec Version</label>
+                    <input
+                      type="text"
+                      value={productForm.version}
+                      onChange={(e) => setProductForm({...productForm, version: e.target.value})}
+                      placeholder="e.g. 1.0.0"
+                      className="w-full p-2.5 bg-zinc-950 border border-zinc-800 rounded-xl outline-none focus:border-indigo-550 text-white text-xs font-mono"
+                    />
+                  </div>
+
+                  {/* Fulfillment underlying format */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-mono tracking-widest text-[#a78bfa] block uppercase font-bold">Fulfillment File Format</label>
+                    <input
+                      type="text"
+                      value={productForm.fileFormat}
+                      onChange={(e) => setProductForm({...productForm, fileFormat: e.target.value})}
+                      placeholder="e.g. ZIP Archive, Figma UX, JSON"
+                      className="w-full p-2.5 bg-zinc-950 border border-zinc-800 rounded-xl outline-none focus:border-indigo-550 text-white text-xs font-mono"
                     />
                   </div>
 
@@ -1642,58 +1692,157 @@ export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin,
 
             {/* 10. ROUTE: /admin/settings */}
             {currentPath === '/admin/settings' && (
-              <div className="bg-zinc-900 border border-zinc-800 p-5 rounded-2xl max-w-2xl space-y-5">
-                <h3 className="text-xs font-mono font-black text-white uppercase tracking-widest border-b border-zinc-800 pb-3 mb-4 block">
-                  SYSTEM ESCROW GATEWAYS CONFIGURATION
-                </h3>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 max-w-5xl">
+                
+                {/* Left Card: Escrow Gateways */}
+                <div className="bg-zinc-900 border border-zinc-800 p-5 rounded-2xl space-y-5 h-fit">
+                  <h3 className="text-xs font-mono font-black text-white uppercase tracking-widest border-b border-zinc-800 pb-3 mb-4 block">
+                    SYSTEM ESCROW GATEWAYS CONFIGURATION
+                  </h3>
 
-                <div className="space-y-4">
-                  {/* EasyPaisa Escrow number */}
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-mono tracking-widest text-zinc-400 block uppercase">EASYPAISA AGENT ACCOUNT NO.</label>
-                    <input
-                      type="text"
-                      value={settings.easypaisaNumber}
-                      onChange={(e) => setSettings({...settings, easypaisaNumber: e.target.value})}
-                      placeholder="e.g. 0300-1234567"
-                      className="w-full p-2.5 bg-zinc-950 border border-zinc-800 rounded-xl outline-none focus:border-indigo-500 text-white font-mono text-xs"
-                    />
+                  <div className="space-y-4">
+                    {/* EasyPaisa Escrow number */}
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-mono tracking-widest text-zinc-400 block uppercase">EASYPAISA AGENT ACCOUNT NO.</label>
+                      <input
+                        type="text"
+                        value={settings.easypaisaNumber}
+                        onChange={(e) => setSettings({...settings, easypaisaNumber: e.target.value})}
+                        placeholder="e.g. 0300-1234567"
+                        className="w-full p-2.5 bg-zinc-950 border border-zinc-800 rounded-xl outline-none focus:border-indigo-500 text-white font-mono text-xs"
+                      />
+                    </div>
+
+                    {/* JazzCash Escrow number */}
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-mono tracking-widest text-zinc-400 block uppercase">JAZZCASH AGENT ACCOUNT NO.</label>
+                      <input
+                        type="text"
+                        value={settings.jazzcashNumber}
+                        onChange={(e) => setSettings({...settings, jazzcashNumber: e.target.value})}
+                        placeholder="e.g. 0312-5555555"
+                        className="w-full p-2.5 bg-zinc-950 border border-zinc-800 rounded-xl outline-none focus:border-indigo-500 text-white font-mono text-xs"
+                      />
+                    </div>
+
+                    {/* Cryptocurrency Gateway Wallet */}
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-mono tracking-widest text-zinc-400 block uppercase">USDT (TRC-20) SECURE WALLET ADDRESS</label>
+                      <input
+                        type="text"
+                        value={settings.cryptoAddress}
+                        onChange={(e) => setSettings({...settings, cryptoAddress: e.target.value})}
+                        placeholder="0x..."
+                        className="w-full p-2.5 bg-zinc-950 border border-zinc-800 rounded-xl outline-none focus:border-indigo-500 text-white font-mono text-xs"
+                      />
+                    </div>
                   </div>
 
-                  {/* JazzCash Escrow number */}
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-mono tracking-widest text-zinc-400 block uppercase">JAZZCASH AGENT ACCOUNT NO.</label>
-                    <input
-                      type="text"
-                      value={settings.jazzcashNumber}
-                      onChange={(e) => setSettings({...settings, jazzcashNumber: e.target.value})}
-                      placeholder="e.g. 0312-5555555"
-                      className="w-full p-2.5 bg-zinc-950 border border-zinc-800 rounded-xl outline-none focus:border-indigo-500 text-white font-mono text-xs"
-                    />
-                  </div>
-
-                  {/* Cryptocurrency Gateway Wallet */}
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-mono tracking-widest text-zinc-400 block uppercase">USDT (TRC-20) SECURE WALLET ADDRESS</label>
-                    <input
-                      type="text"
-                      value={settings.cryptoAddress}
-                      onChange={(e) => setSettings({...settings, cryptoAddress: e.target.value})}
-                      placeholder="0x..."
-                      className="w-full p-2.5 bg-zinc-950 border border-zinc-800 rounded-xl outline-none focus:border-indigo-500 text-white font-mono text-xs"
-                    />
+                  <div className="flex justify-end pt-4 border-t border-zinc-800 mt-5">
+                    <button
+                      onClick={handleSaveSettings}
+                      type="button"
+                      className="p-2.5 px-6 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold cursor-pointer"
+                    >
+                      Authorize Escrow Channels
+                    </button>
                   </div>
                 </div>
 
-                <div className="flex justify-end pt-4 border-t border-zinc-800 mt-5">
-                  <button
-                    onClick={handleSaveSettings}
-                    type="button"
-                    className="p-2.5 px-6 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold cursor-pointer"
-                  >
-                    Authorize Escrow Channels
-                  </button>
+                {/* Right Card: Dynamic Announcements Ticker Management */}
+                <div className="bg-zinc-900 border border-zinc-800 p-5 rounded-2xl space-y-5 h-fit">
+                  <h3 className="text-xs font-mono font-black text-white uppercase tracking-widest border-b border-zinc-800 pb-3 mb-4 block">
+                    STOREFRONT PROMO HEADLINES (ANNOUNCEMENT TICKER)
+                  </h3>
+
+                  <div className="space-y-3.5 max-h-72 overflow-y-auto pr-1">
+                    {announcements.map((announceStr, idx) => (
+                      <div key={idx} className="p-3 bg-zinc-950 border border-zinc-850 rounded-xl flex items-center justify-between gap-3 text-xs">
+                        {editingAnnounceIdx === idx ? (
+                          <form 
+                            onSubmit={(e) => {
+                              e.preventDefault();
+                              handleSaveEditAnnouncement(idx, editingAnnounceText);
+                            }} 
+                            className="flex-1 flex gap-2"
+                          >
+                            <input
+                              type="text"
+                              required
+                              value={editingAnnounceText}
+                              onChange={(e) => setEditingAnnounceText(e.target.value)}
+                              className="flex-1 p-1 px-2 bg-zinc-900 border border-zinc-800 rounded text-xs text-white outline-none focus:border-indigo-500 font-sans"
+                            />
+                            <button
+                              type="submit"
+                              className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 rounded text-[10px] text-white font-bold cursor-pointer shrink-0"
+                            >
+                              SAVE
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setEditingAnnounceIdx(null)}
+                              className="px-2 py-1 bg-zinc-800 hover:bg-zinc-700 rounded text-[10px] text-zinc-300 cursor-pointer shrink-0"
+                            >
+                              CANCEL
+                            </button>
+                          </form>
+                        ) : (
+                          <>
+                            <div className="flex items-start gap-2 min-w-0 flex-1">
+                              <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 mt-1.5 shrink-0" />
+                              <span className="font-sans text-zinc-200 break-words leading-relaxed">{announceStr}</span>
+                            </div>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <button
+                                onClick={() => {
+                                  setEditingAnnounceIdx(idx);
+                                  setEditingAnnounceText(announceStr);
+                                }}
+                                className="p-1 px-1.5 text-slate-400 hover:text-indigo-400 border border-zinc-800 hover:border-indigo-500/30 rounded bg-zinc-900/40 transition-colors cursor-pointer"
+                                title="Edit Headline Text"
+                              >
+                                <Edit className="w-3.2 h-3.2 shrink-0" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteAnnouncement(idx)}
+                                className="p-1 px-1.5 text-red-400 hover:text-red-300 border border-zinc-800 hover:border-red-900/35 rounded bg-zinc-900/40 transition-colors cursor-pointer"
+                                title="Delete Headline Banner"
+                              >
+                                <Trash2 className="w-3.2 h-3.2 shrink-0" />
+                              </button>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    ))}
+                    {announcements.length === 0 && (
+                      <p className="text-zinc-500 text-center py-4 text-[11px] font-mono">No headline tickers configured. Adding a fallback announcement below handles default banner view.</p>
+                    )}
+                  </div>
+
+                  <form onSubmit={handleAddAnnouncement} className="space-y-2 border-t border-zinc-800 pt-4">
+                    <label className="text-[10px] font-mono tracking-wider text-amber-500 block uppercase">Publish New Headline Promo Banner</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        required
+                        value={newAnnouncementText}
+                        onChange={(e) => setNewAnnouncementText(e.target.value)}
+                        placeholder="e.g. 🔥 DISCOUNT SECURED: Get 30% OFF using vault key!"
+                        className="flex-1 p-2 bg-zinc-950 border border-zinc-800 rounded-xl text-xs text-white outline-none focus:border-indigo-500 animate-none font-sans"
+                      />
+                      <button
+                        type="submit"
+                        className="py-2 px-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold flex items-center gap-1 cursor-pointer shrink-0"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Publish</span>
+                      </button>
+                    </div>
+                  </form>
                 </div>
+
               </div>
             )}
 
