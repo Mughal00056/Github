@@ -198,14 +198,12 @@ export default function Dashboard({
                             <span>Price: <span className="font-mono text-zinc-700 dark:text-zinc-300">${p.amountPaid}</span></span>
                           </div>
 
-                          {/* Direct Raw URL display */}
+                          {/* Secure dispatch notification */}
                           <div className="pt-2">
                             {isCompleted ? (
-                              <div className="bg-white dark:bg-zinc-950 p-2 rounded-lg border border-zinc-200 dark:border-zinc-850 text-[10px] font-mono text-indigo-600 dark:text-indigo-400 shadow-inner">
-                                <span className="text-zinc-400 block mb-0.5 text-[9px] uppercase tracking-wider">Direct Download URL:</span>
-                                <a href={p.downloadUrl} target="_blank" rel="noopener noreferrer" className="hover:underline break-all">
-                                  {p.downloadUrl}
-                                </a>
+                              <div className="bg-white dark:bg-zinc-950 p-2 rounded-lg border border-zinc-200 dark:border-zinc-850 text-[10px] font-sans text-zinc-500 shadow-inner">
+                                <span className="text-zinc-400 block mb-0.5 text-[9px] uppercase tracking-wider font-mono">Delivery notice:</span>
+                                <span>The download assets are dispatched via the administrator's email.</span>
                               </div>
                             ) : (
                               <div className="bg-zinc-100 dark:bg-zinc-950/80 p-2.5 rounded-lg border border-dashed border-zinc-200 dark:border-zinc-850 text-[10px] font-mono text-zinc-400 dark:text-zinc-550 italic">
@@ -215,18 +213,18 @@ export default function Dashboard({
                           </div>
                         </div>
 
-                        {/* Download link button */}
+                        {/* Download link button converted to Gmail composition */}
                         <div className="sm:self-center shrink-0">
                           {isCompleted ? (
                             <a
                               id={`dash-dl-${p.id}`}
-                              href={p.downloadUrl}
+                              href={`mailto:aneesabid0012@gmail.com?subject=Asset%20Download%20Request%3A%20${encodeURIComponent(p.productTitle)}&body=Hello%20Admin%2C%0A%0AI%20have%20purchased%20"${encodeURIComponent(p.productTitle)}".%20Please%20deliver%20the%2520materials%2520asap.%0A%0AThank%20you!`}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-sans font-semibold py-2 px-4 rounded-xl transition-all shadow-sm cursor-pointer"
                             >
                               <Download className="w-4 h-4" />
-                              <span>Download File</span>
+                              <span>Gmail send for admin</span>
                               <ExternalLink className="w-3.5 h-3.5" />
                             </a>
                           ) : (

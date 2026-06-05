@@ -527,7 +527,7 @@ export default function CheckoutModal({
               </p>
                        {/* Generated Unlocked Assets */}
             <div className="space-y-3 text-left">
-              <span className="text-[10px] font-mono text-zinc-400 uppercase tracking-widest pl-1">Direct Download Links</span>
+              <span className="text-[10px] font-mono text-zinc-400 uppercase tracking-widest pl-1">Secure Delivery Gateway</span>
               <div className="space-y-2.5">
                 {cart.map(item => {
                   return (
@@ -539,24 +539,22 @@ export default function CheckoutModal({
                         <span className="text-xs font-bold text-zinc-900 dark:text-zinc-50 truncate max-w-[285px]">{item.product.title}</span>
                       </div>
 
-                      {/* Direct Raw URL display */}
-                      <div className="bg-white dark:bg-zinc-950 p-2.5 rounded-lg border border-zinc-200 dark:border-zinc-850 text-[10px] font-mono mb-2 break-all text-indigo-600 dark:text-indigo-400 shadow-inner">
-                        <span className="text-zinc-400 block mb-0.5 text-[9px] uppercase tracking-wider">Direct URL:</span>
-                        <a href={item.product.downloadUrl} target="_blank" rel="noopener noreferrer" className="hover:underline break-all">
-                          {item.product.downloadUrl}
-                        </a>
+                      {/* Notice displaying dispatch updates */}
+                      <div className="bg-white dark:bg-zinc-950 p-2.5 rounded-lg border border-zinc-200 dark:border-zinc-850 text-[10px] font-sans mb-2 text-zinc-650 dark:text-zinc-300 shadow-inner">
+                        <span className="text-zinc-400 block mb-0.5 text-[9px] uppercase tracking-mono tracking-wider font-mono">Admin Notification:</span>
+                        <span>This asset will be sent directly to your email address by the administrator. Click the button below to notify.</span>
                       </div>
 
-                      {/* Download Link anchor */}
+                      {/* Download Link anchor replaced with Gmail Mailto compose */}
                       <a
                         id={`direct-dl-${item.product.id}`}
-                        href={item.product.downloadUrl}
+                        href={`mailto:aneesabid0012@gmail.com?subject=Asset%20Purchase%20Delivery%3A%20${encodeURIComponent(item.product.title)}&body=Hello%20Admin%2C%0A%0AI%20have%20ordered%20"${encodeURIComponent(item.product.title)}".%20Please%20deliver%20the%20digital%20materials%20to%20my%20registered%20email%20address%20as%20soon%2520as%2520possible.%0A%0AThank%20you!`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="w-full inline-flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-sans font-semibold py-2 px-3 rounded-lg transition-colors cursor-pointer"
                       >
                         <Download className="w-3.5 h-3.5" />
-                        <span>Instant Download Link</span>
+                        <span>Gmail send for admin</span>
                         <ExternalLink className="w-3 h-3" />
                       </a>
                     </div>

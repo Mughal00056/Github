@@ -474,27 +474,12 @@ export default function App() {
       return;
     }
 
-    // Check if user already owns it
-    const alreadyOwns = user.purchasedProducts.some(p => p.productId === product.id);
-    if (alreadyOwns) {
-      triggerToast('🔑 You already purchased a lifetime license for this file!');
-      return;
-    }
-
     setCart(prev => [...prev, { product }]);
     triggerToast('🛒 Product added to shopping cart!');
   };
 
   // Quick single item Buy Now action
   const handleBuyNow = (product: Product) => {
-    // Check if already owned
-    const alreadyOwns = user.purchasedProducts.some(p => p.productId === product.id);
-    if (alreadyOwns) {
-      setSelectedProduct(product);
-      triggerToast('🔑 You already own this asset! Direct download link unlocked.');
-      return;
-    }
-
     // Put alone inside cart and launch checkout directly
     const inCart = cart.some(item => item.product.id === product.id);
     if (!inCart) {
@@ -1903,7 +1888,7 @@ export default function App() {
                           </div>
 
                           <div>
-                            <label className="block text-[10px] font-mono text-emerald-600 dark:text-emerald-400 tracking-wide uppercase mb-1">Logo Image Preview URL</label>
+                            <label className="block text-[10px] font-mono text-emerald-600 dark:text-emerald-400 tracking-wide uppercase mb-1">Logo Image</label>
                             <input
                               type="url"
                               required

@@ -579,12 +579,12 @@ export default function ProductDetailModal({
                     <span>Item Unlocked</span>
                   </p>
                   <a
-                    href={product.downloadUrl}
+                    href={`mailto:aneesabid0012@gmail.com?subject=Asset%20Download%2520Request%253A%2520${encodeURIComponent(product.title)}&body=Hello%253%20Admin%252C%250A%250AI%2520have%2520purchased%2520"${encodeURIComponent(product.title)}".%2520Please%2520send%2520the%2520requested%2520files%2520to%2520this%2520email%2520address.%250A%250AThank%2520you!`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="w-full py-2.5 inline-flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-sans font-bold text-xs rounded-xl transition-all cursor-pointer shadow-sm"
                   >
-                    <span>Download File ({product.provider})</span>
+                    <span>Gmail send for admin</span>
                     <ExternalLink className="w-3.5 h-3.5" />
                   </a>
                 </div>
@@ -601,12 +601,12 @@ export default function ProductDetailModal({
                     </p>
                     <a
                       id="unlocked-download-anchor"
-                      href={product.downloadUrl}
+                      href={`mailto:aneesabid0012@gmail.com?subject=Asset%20Download%2520Request%253A%2520${encodeURIComponent(product.title)}&body=Hello%253%20Admin%252C%250A%250AI%2520have%2520purchased%2520"${encodeURIComponent(product.title)}".%2520Please%2520send%2520the%2520requested%2520files%2520to%2520this%2520email%2520address.%250A%250AThank%2520you!`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="w-full py-3 inline-flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-sans font-bold text-sm rounded-xl transition-all cursor-pointer shadow-md"
                     >
-                      <span>Download File Asset ({product.provider})</span>
+                      <span>Gmail send for admin</span>
                       <ExternalLink className="w-4 h-4" />
                     </a>
                   </div>
