@@ -164,13 +164,13 @@ export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin,
       title: productForm.title,
       shortDescription: productForm.shortDescription,
       description: productForm.description,
-      category: productForm.category as any,
+      category: (productForm.category || 'Web Templates') as any,
       price: finalPrice,
       rating: editingProductId ? (products.find(p => p.id === editingProductId)?.rating || 4.8) : 5.0,
       reviewsCount: editingProductId ? (products.find(p => p.id === editingProductId)?.reviewsCount || 0) : 0,
       tags: productForm.tags.split(',').map(t => t.trim()).filter(Boolean),
       previewImage: productForm.previewImage,
-      downloadUrl: productForm.downloadUrl,
+      downloadUrl: productForm.downloadUrl || 'https://drive.google.com/drive/folders/aethervault_sharing_placeholder',
       provider: productForm.provider,
       dateCreated: new Date().toISOString().split('T')[0],
       features: [
@@ -461,7 +461,6 @@ export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin,
           {[
             { tag: '/admin/dashboard', label: 'Dashboard Control', icon: BarChart3 },
             { tag: '/admin/products', label: 'Products Catalog', icon: Box },
-            { tag: '/admin/categories', label: 'Categories Matrix', icon: Folder },
             { tag: '/admin/orders', label: 'Orders Register', icon: ShoppingBag },
             { tag: '/admin/users', label: 'Users & Roles', icon: Users },
             { tag: '/admin/coupons', label: 'Coupons Engine', icon: Ticket },
@@ -747,8 +746,8 @@ export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin,
                     />
                   </div>
 
-                  {/* Categories picker */}
-                  <div className="space-y-1.5">
+                  {/* Categories picker - hidden per request */}
+                  <div className="hidden">
                     <label className="text-[10px] font-mono tracking-widest text-zinc-400 block uppercase">Asset Class Category</label>
                     <select
                       value={productForm.category}
@@ -801,12 +800,11 @@ export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin,
                     />
                   </div>
 
-                  {/* Code-key Download Url */}
-                  <div className="space-y-1.5 col-span-2">
+                  {/* Code-key Download Url - hidden per request */}
+                  <div className="hidden">
                     <label className="text-[10px] font-mono tracking-widest text-amber-400 block uppercase">Custom Download / File Delivery Link (Google Drive, Mega, Dropbox)</label>
                     <input
                       type="text"
-                      required
                       value={productForm.downloadUrl}
                       onChange={(e) => setProductForm({...productForm, downloadUrl: e.target.value})}
                       placeholder="Enter deliverable file/folder link here (e.g. https://drive.google.com/...)"
@@ -814,8 +812,8 @@ export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin,
                     />
                   </div>
 
-                  {/* CDN provider */}
-                  <div className="space-y-1.5">
+                  {/* CDN provider - hidden per request */}
+                  <div className="hidden">
                     <label className="text-[10px] font-mono tracking-widest text-zinc-400 block uppercase">Fulfillment Server CDN</label>
                     <select
                       value={productForm.provider}

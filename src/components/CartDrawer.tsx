@@ -44,13 +44,22 @@ export default function CartDrawer({
     if (!code) return;
 
     // Direct dynamic catalog search with fallback representation
-    const activePromos = promoCodesList.length > 0 ? promoCodesList : [
+    const defaultPromos = [
       { code: 'AETHER20', percent: 20 },
       { code: 'WELCOME20', percent: 20 },
       { code: 'FREEBIE', percent: 100 }
     ];
+    // Combine both static and live list to ensure AETHER20 and FREEBIE always work
+    const activePromos = [...defaultPromos];
+    if (promoCodesList && promoCodesList.length > 0) {
+      promoCodesList.forEach(dynamicPromo => {
+        if (dynamicPromo && dynamicPromo.code && !activePromos.some(p => p.code.toUpperCase() === dynamicPromo.code.toUpperCase())) {
+          activePromos.push(dynamicPromo);
+        }
+      });
+    }
 
-    const matched = activePromos.find(p => p.code === code);
+    const matched = activePromos.find(p => p.code.trim().toUpperCase() === code);
     if (matched) {
       setAppliedPromo(code);
       setDiscountPercent(matched.percent);

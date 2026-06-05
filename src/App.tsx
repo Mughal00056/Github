@@ -37,7 +37,7 @@ import CheckoutModal from './components/CheckoutModal';
 import Dashboard from './components/Dashboard';
 import AuthModal from './components/AuthModal';
 import AdminDashboard from './admin/AdminDashboard';
-import { syncUserProfile, getUserProfile, recordPurchase, getUserPurchases, logoutUser } from './firebase';
+import { db, syncUserProfile, getUserProfile, recordPurchase, getUserPurchases, logoutUser } from './firebase';
 
 const CIRCLE_CATEGORIES = [
   { name: 'All', image: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&q=80&w=150&h=150' },
@@ -253,6 +253,36 @@ export default function App() {
       clearInterval(logInterval);
       clearInterval(announcementTimer);
       clearInterval(spotlightTimer);
+    };
+  }, []);
+
+  // Real-time synchronization of products with Firestore database
+  useEffect(() => {
+    let unsubscribe: () => void = () => {};
+    const initProductsSync = async () => {
+      try {
+        const { collection, onSnapshot } = await import('firebase/firestore');
+        const prodCol = collection(db, 'products');
+        unsubscribe = onSnapshot(prodCol, (snapshot) => {
+          if (!snapshot.empty) {
+            const liveList: Product[] = [];
+            snapshot.forEach((doc) => {
+              liveList.push({ id: doc.id, ...doc.data() } as Product);
+            });
+            setProducts(liveList);
+          } else {
+            setProducts(INITIAL_PRODUCTS);
+          }
+        }, (err) => {
+          console.warn("Firestore products snapshot listener error:", err);
+        });
+      } catch (err) {
+        console.warn("Failsafe loading products error:", err);
+      }
+    };
+    initProductsSync();
+    return () => {
+      unsubscribe();
     };
   }, []);
 
@@ -1201,72 +1231,7 @@ export default function App() {
           {/* Main catalog items list */}
           <div className="w-full space-y-6">
 
-            {/* Elegant Circular Categories Slider Tray */}
-            <div className="py-4 border-b border-zinc-200/50 dark:border-white/5 select-none">
-              <div className="flex items-center gap-1.5 mb-3 px-1 text-[10px] font-mono text-zinc-400 dark:text-slate-500 uppercase tracking-widest font-bold">
-                <Compass className="w-3.5 h-3.5 text-indigo-400 animate-spin-slow" />
-                <span>Explore Categories & Downloads</span>
-              </div>
-              <div
-                ref={categoriesRef}
-                onMouseDown={handleCatMouseDown}
-                onMouseLeave={handleCatMouseLeaveOrUp}
-                onMouseUp={handleCatMouseLeaveOrUp}
-                onMouseMove={handleCatMouseMove}
-                className="flex gap-4 sm:gap-6 pb-2 overflow-x-auto scrollbar-none snap-x items-center px-1 cursor-grab active:cursor-grabbing select-none"
-              >
-                {CIRCLE_CATEGORIES.map((circle) => {
-                  const isActive = activeCategory === circle.name;
-                  return (
-                    <button
-                      key={circle.name}
-                      onClick={() => {
-                        setActiveCategory(circle.name);
-                        // Trigger hint if Downloads is empty
-                        if (circle.isDownload && user.purchasedProducts.length === 0) {
-                          triggerToast("📥 Order items from Checkout to unlock instant offline file downloads!");
-                        }
-                      }}
-                      className="flex flex-col items-center shrink-0 snap-align-start focus:outline-none cursor-pointer group space-y-2"
-                    >
-                      {/* Circle container */}
-                      <div className={`relative w-14 h-14 sm:w-16 sm:h-16 rounded-full flex items-center justify-center p-[2px] transition-all duration-300 ${
-                        isActive 
-                          ? 'bg-gradient-to-tr from-indigo-500 via-purple-500 to-fuchsia-500 shadow-xl shadow-indigo-500/30 scale-105 ring-2 ring-indigo-500/20' 
-                          : 'bg-zinc-200 dark:bg-white/10 group-hover:scale-102 group-hover:bg-zinc-300 dark:group-hover:bg-white/20'
-                      }`}>
-                        <div className="w-full h-full rounded-full overflow-hidden bg-zinc-100 dark:bg-zinc-950 relative">
-                          <img 
-                            src={circle.image} 
-                            alt={circle.name}
-                            referrerPolicy="no-referrer"
-                            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
-                          />
-                          {/* If downloads, overlay a premium animated download symbol sign */}
-                          {circle.isDownload && (
-                            <div className="absolute inset-0 bg-indigo-950/60 flex items-center justify-center backdrop-blur-[1px]">
-                              <svg className="w-5 h-5 text-indigo-200 animate-bounce" fill="none" stroke="currentColor" strokeWidth="2.8" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
-                              </svg>
-                            </div>
-                          )}
-                          <div className={`absolute inset-0 bg-black/10 dark:bg-black/25 transition-opacity duration-300 ${isActive ? 'opacity-0' : 'opacity-100 group-hover:opacity-45'}`} />
-                        </div>
-                      </div>
-                      
-                      {/* Name label */}
-                      <span className={`text-[10px] sm:text-[11px] font-mono font-bold tracking-tight transition-colors ${
-                        isActive 
-                          ? 'text-indigo-600 dark:text-indigo-400' 
-                          : 'text-zinc-500 dark:text-slate-400 group-hover:text-zinc-900 dark:group-hover:text-white'
-                      }`}>
-                        {circle.name}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+
             
             {/* Sorted list grids */}
             {sortedProducts.length === 0 ? (
