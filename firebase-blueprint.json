@@ -1,0 +1,85 @@
+{
+  "entities": {
+    "Product": {
+      "title": "Product",
+      "description": "Premium digital asset in the marketplace.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "shortDescription": { "type": "string" },
+        "description": { "type": "string" },
+        "category": { "type": "string", "enum": ["Web Templates", "UI Kits", "Scripts", "Plugins", "Graphics", "SaaS Tools", "AI Prompts"] },
+        "price": { "type": "number" },
+        "rating": { "type": "number" },
+        "reviewsCount": { "type": "number" },
+        "previewImage": { "type": "string" },
+        "downloadUrl": { "type": "string" },
+        "provider": { "type": "string" },
+        "dateCreated": { "type": "string" },
+        "fileSize": { "type": "string" },
+        "fileFormat": { "type": "string" },
+        "version": { "type": "string" }
+      },
+      "required": ["id", "title", "shortDescription", "category", "price", "previewImage", "downloadUrl"]
+    },
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile with preference metadata.",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "format": "email" },
+        "name": { "type": "string" },
+        "avatar": { "type": "string" },
+        "isAdmin": { "type": "boolean" },
+        "wishlistIds": { "type": "array" }
+      },
+      "required": ["email", "name", "avatar"]
+    },
+    "Purchase": {
+      "title": "Purchase",
+      "description": "Unlock record for a purchased product.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "productId": { "type": "string" },
+        "productTitle": { "type": "string" },
+        "purchaseDate": { "type": "string" },
+        "amountPaid": { "type": "number" },
+        "downloadUrl": { "type": "string" },
+        "provider": { "type": "string" },
+        "unlockToken": { "type": "string" }
+      },
+      "required": ["id", "productId", "productTitle", "purchaseDate", "amountPaid", "downloadUrl", "unlockToken"]
+    },
+    "PaymentDetails": {
+      "title": "PaymentDetails",
+      "description": "Settings containing administrative billing accounts.",
+      "type": "object",
+      "properties": {
+        "easypaisaNumber": { "type": "string" },
+        "jazzcashNumber": { "type": "string" },
+        "cryptoAddress": { "type": "string" }
+      },
+      "required": ["easypaisaNumber", "jazzcashNumber", "cryptoAddress"]
+    }
+  },
+  "firestore": {
+    "/products/{productId}": {
+      "schema": "Product",
+      "description": "Collection of digital marketplace products."
+    },
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "Collection of user details and wishlist elements."
+    },
+    "/users/{userId}/purchases/{purchaseId}": {
+      "schema": "Purchase",
+      "description": "Subcollection of unlocked purchase records per user."
+    },
+    "/settings/{settingId}": {
+      "schema": "PaymentDetails",
+      "description": "Administrative marketplace global settings doc."
+    }
+  }
+}

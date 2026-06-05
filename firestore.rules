@@ -1,0 +1,86 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global safety net: default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(emailField) {
+      return isSignedIn() && 
+        request.auth.token.email != null && 
+        request.auth.token.email == emailField;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && 
+        request.auth.token.email != null && 
+        request.auth.token.email == 'mrflop786@gmail.com';
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Collection: products
+    match /products/{productId} {
+      allow read: if true; // Any visitor can read products
+      allow write: if isAdmin() && isValidId(productId);
+    }
+
+    // Collection: users
+    match /users/{userId} {
+      // Owner can read/write their own profile; Admin can read/write any profile
+      allow get: if (resource != null && isOwner(resource.data.email)) || isAdmin();
+      allow list: if isAdmin(); // Only admins can list all users
+      
+      // On user document:
+      // Allow create if they are configuring their own profile. On creation, check if keys match exactly.
+      allow create: if isSignedIn() && isValidId(userId) && 
+        isOwner(request.resource.data.email) &&
+        request.resource.data.keys().hasAll(['email', 'name', 'avatar', 'wishlistIds']) && 
+        request.resource.data.keys().size() >= 4;
+        
+      // Allow update of wishlist or other fields
+      allow update: if isValidId(userId) && (
+        isAdmin() || (
+          isOwner(resource.data.email) && 
+          isOwner(request.resource.data.email)
+        )
+      );
+      allow delete: if isAdmin();
+    }
+
+    // Collection: purchases subcollection under users
+    match /users/{userId}/purchases/{purchaseId} {
+      // Since userId in the path is derived from email, we check the parent user's email document to verify ownership
+      allow read: if isAdmin() || (
+        isSignedIn() && 
+        request.auth.token.email != null && 
+        get(/databases/$(database)/documents/users/$(userId)).data.email == request.auth.token.email
+      );
+      
+      allow create, update: if isAdmin() || (
+        isSignedIn() && 
+        request.auth.token.email != null && 
+        get(/databases/$(database)/documents/users/$(userId)).data.email == request.auth.token.email &&
+        isValidId(purchaseId)
+      );
+      
+      allow delete: if isAdmin();
+    }
+
+    // Collection: settings
+    match /settings/{settingId} {
+      // Anyone signed in should be able to get setting document (like paymentDetails)
+      allow get: if isSignedIn() && isValidId(settingId);
+      allow list: if isAdmin();
+      allow write: if isAdmin() && isValidId(settingId);
+    }
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "name": "Digital Assets Marketplace",
+  "description": "A premium administrative console and developer hub to browse, purchase, audit, and manage high-quality digital templates, UI kits, SaaS scripts, coupons, and orders.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
