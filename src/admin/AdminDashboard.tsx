@@ -146,13 +146,13 @@ export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin,
     fetchAllData();
   }, [currentPath]);
 
-  // Handle Product Add/Edit submission
-  const handleSaveProduct = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!productForm.title || !productForm.previewImage || !productForm.downloadUrl) {
-      alert("Please fill in all core product information metrics.");
-      return;
-    }
+    // Handle Product Add/Edit submission
+    const handleSaveProduct = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!productForm.title || !productForm.previewImage) {
+        alert("Please fill in all core product information metrics.");
+        return;
+      }
 
     const targetId = editingProductId || `prod-${Math.floor(100 + Math.random() * 900)}`;
     const originalPrice = Number(productForm.price);
@@ -663,7 +663,6 @@ export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin,
                       <thead>
                         <tr className="bg-zinc-950 text-zinc-400 border-b border-zinc-800 font-mono">
                           <th className="p-3 pl-5">Product Asset</th>
-                          <th className="p-3">Category</th>
                           <th className="p-3 font-right">Clearing Price</th>
                           <th className="p-3 text-center">Fulfillment System</th>
                           <th className="p-3 text-center">Featured</th>
@@ -682,7 +681,6 @@ export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin,
                                 </div>
                               </div>
                             </td>
-                            <td className="p-3 font-mono">{prod.category}</td>
                             <td className="p-3 font-mono font-bold text-white">${prod.price}</td>
                             <td className="p-3 text-center">
                               <span className="inline-block px-2 py-0.5 rounded font-mono text-[10px] bg-zinc-800 text-zinc-300">
