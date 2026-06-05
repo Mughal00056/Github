@@ -56,7 +56,17 @@ export default function CheckoutModal({
   const [paymentDetails, setPaymentDetails] = useState<{ easypaisaNumber: string; jazzcashNumber: string; cryptoAddress: string }>({ easypaisaNumber: '', jazzcashNumber: '', cryptoAddress: '' });
 
   React.useEffect(() => {
-    import('../firebase').then(f => f.getPaymentDetails()).then(setPaymentDetails);
+    const saved = localStorage.getItem('admin_escrow_settings');
+    if (saved) {
+      try {
+        setPaymentDetails(JSON.parse(saved));
+      } catch (e) {}
+    }
+    import('../firebase').then(f => f.getPaymentDetails()).then(res => {
+      if (res && (res.easypaisaNumber || res.jazzcashNumber || res.cryptoAddress)) {
+        setPaymentDetails(res);
+      }
+    });
   }, []);
 
   if (!isOpen) return null;

@@ -286,21 +286,8 @@ export default function CartDrawer({
                   )}
                 </div>
 
-                {promoError && <p className="text-[10px] text-red-500 font-medium">{promoError}</p>}
-                {promoSuccess && <p className="text-[10px] text-emerald-500 font-semibold">{promoSuccess}</p>}
-                {!appliedPromo && (
-                  <p className="text-[10.5px] text-zinc-400">
-                    {promoCodesList && promoCodesList.filter(p => p.code && !p.code.startsWith('__')).length > 0 ? (
-                      <span>
-                        💡 Valid Promo Codes: {promoCodesList.filter(p => p.code && !p.code.startsWith('__')).map(p => `${p.code} (${p.percent}% off)`).join(', ')}
-                      </span>
-                    ) : (
-                      <span>
-                        💡 Tip: Enter <span className="font-mono font-bold text-zinc-505 dark:text-zinc-300">AETHER20</span> (20% off) or <span className="font-mono font-bold text-zinc-505 dark:text-zinc-300">FREEBIE</span> (100% off) for test discount!
-                      </span>
-                    )}
-                  </p>
-                )}
+                {promoError && <p className="text-[10px] text-red-500 font-medium px-1">{promoError}</p>}
+                {promoSuccess && <p className="text-[10px] text-emerald-500 font-semibold px-1">{promoSuccess}</p>}
               </form>
 
               {/* Price list */}

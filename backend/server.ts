@@ -241,6 +241,26 @@ app.delete('/api/categories/:name', (req, res) => {
   res.json({ success: true });
 });
 
+// 6. Announcements operations (AetherVault ticker edit/delete options)
+let localAnnouncements: string[] = [
+  "🔥 EXCLUSIVE PROMO: Get 25% OFF on all React templates & UI kits using code VAULT25!",
+  "⚡ SECURE SECRETS: Direct Dropbox & Drive browser unlocks, no registered logins requested!",
+  "🛡️ SANDBOX GUARANTEE: Lightweight, verified, production-ready source scripts!",
+  "💎 ACTIVE SPOTLIGHTS: Upgraded catalog features direct source updates every week!"
+];
+
+app.get('/api/announcements', (req, res) => {
+  res.json(localAnnouncements);
+});
+
+app.post('/api/announcements', (req, res) => {
+  const { announcements } = req.body;
+  if (Array.isArray(announcements)) {
+    localAnnouncements = announcements;
+  }
+  res.json({ success: true, announcements: localAnnouncements });
+});
+
 async function startServer() {
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({

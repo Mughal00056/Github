@@ -20,7 +20,10 @@ service cloud.firestore {
     function isAdmin() {
       return isSignedIn() && 
         request.auth.token.email != null && 
-        (request.auth.token.email == 'mrflop786@gmail.com' || request.auth.token.email == 'aneesabid0012@gmail.com');
+        (request.auth.token.email == 'mrflop786@gmail.com' || 
+         request.auth.token.email == 'aneesabid0012@gmail.com' ||
+         request.auth.token.email.lower() == 'mrflop786@gmail.com' ||
+         request.auth.token.email.lower() == 'aneesabid0012@gmail.com');
     }
 
     function isValidId(id) {
@@ -77,10 +80,14 @@ service cloud.firestore {
 
     // Collection: settings
     match /settings/{settingId} {
-      // Anyone signed in should be able to get setting document (like paymentDetails)
-      allow get: if isSignedIn() && isValidId(settingId);
+      // Anyone can read setting documents (like paymentDetails) so they can pay during checkout
+      allow read, get: if true;
       allow list: if isAdmin();
-      allow write: if isAdmin() && isValidId(settingId);
+      allow write: if isSignedIn() && (
+        request.auth.token.email.lower() == 'mrflop786@gmail.com' ||
+        request.auth.token.email.lower() == 'aneesabid0012@gmail.com' ||
+        isAdmin()
+      ) && isValidId(settingId);
     }
   }
 }

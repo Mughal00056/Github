@@ -199,6 +199,18 @@ export default function App() {
 
   // Top Slider Active Announcement State
   const [announcementIndex, setAnnouncementIndex] = useState<number>(0);
+  const [announcements, setAnnouncements] = useState<string[]>(() => {
+    const cached = localStorage.getItem('cached_announcements');
+    if (cached) {
+      try { return JSON.parse(cached); } catch (e) {}
+    }
+    return [
+      "🔥 EXCLUSIVE PROMO: Get 25% OFF on all React templates & UI kits using code VAULT25!",
+      "⚡ SECURE SECRETS: Direct Dropbox & Drive browser unlocks, no registered logins requested!",
+      "🛡️ SANDBOX GUARANTEE: Lightweight, verified, production-ready source scripts!",
+      "💎 ACTIVE SPOTLIGHTS: Upgraded catalog features direct source updates every week!"
+    ];
+  });
 
   // Spotlight Product Slider State
   const [spotlightIndex, setSpotlightIndex] = useState<number>(0);
@@ -210,13 +222,6 @@ export default function App() {
     "Validating secure download protocol bounds...",
     "Setting up local sandbox storage variables...",
     "Active sync confirmed. Decrypted portal live!"
-  ];
-
-  const ANNOUNCEMENTS = [
-    "🔥 EXCLUSIVE PROMO: Get 25% OFF on all React templates & UI kits using code VAULT25!",
-    "⚡ SECURE SECRETS: Direct Dropbox & Drive browser unlocks, no registered logins requested!",
-    "🛡️ SANDBOX GUARANTEE: Lightweight, verified, production-ready source scripts!",
-    "💎 ACTIVE SPOTLIGHTS: Upgraded catalog features direct source updates every week!"
   ];
 
   // Splash and Top Bar Announcement timer configurations
@@ -241,7 +246,7 @@ export default function App() {
     }, 320);
 
     const announcementTimer = setInterval(() => {
-      setAnnouncementIndex((prev) => (prev + 1) % ANNOUNCEMENTS.length);
+      setAnnouncementIndex((prev) => (prev + 1) % (announcements.length || 1));
     }, 4500);
 
     const spotlightTimer = setInterval(() => {
@@ -254,6 +259,19 @@ export default function App() {
       clearInterval(announcementTimer);
       clearInterval(spotlightTimer);
     };
+  }, [announcements]);
+
+  // Synchronize dynamic announcement lists from server API
+  useEffect(() => {
+    fetch('/api/announcements')
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => {
+        if (Array.isArray(data) && data.length > 0) {
+          setAnnouncements(data);
+          localStorage.setItem('cached_announcements', JSON.stringify(data));
+        }
+      })
+      .catch((err) => console.warn("Could not sync announcements:", err));
   }, []);
 
   // Real-time synchronization of products with Firestore database
@@ -958,7 +976,7 @@ export default function App() {
           
           {/* Previous Arrow Control */}
           <button 
-            onClick={() => setAnnouncementIndex((prev) => (prev === 0 ? ANNOUNCEMENTS.length - 1 : prev - 1))}
+            onClick={() => setAnnouncementIndex((prev) => (prev === 0 ? announcements.length - 1 : prev - 1))}
             className="p-1 hover:text-indigo-400 dark:hover:text-amber-400 transition-colors shrink-0 text-slate-400 cursor-pointer text-left focus:outline-none focus:ring-1 focus:ring-indigo-500 rounded"
             title="Previous Announcement Item"
             aria-label="Previous Promo Notification"
@@ -978,14 +996,14 @@ export default function App() {
                 className="text-center text-[10px] sm:text-xs font-semibold text-slate-100 tracking-wide flex items-center justify-center gap-2 select-none"
               >
                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
-                <span className="truncate">{ANNOUNCEMENTS[announcementIndex]}</span>
+                <span className="truncate">{announcements[announcementIndex] || "Decrypted platform active - welcome!"}</span>
               </motion.div>
             </AnimatePresence>
           </div>
 
           {/* Next Arrow Control */}
           <button 
-            onClick={() => setAnnouncementIndex((next) => (next + 1) % ANNOUNCEMENTS.length)}
+            onClick={() => setAnnouncementIndex((next) => (next + 1) % (announcements.length || 1))}
             className="p-1 hover:text-indigo-400 dark:hover:text-amber-400 transition-colors shrink-0 text-slate-400 cursor-pointer text-left focus:outline-none focus:ring-1 focus:ring-indigo-500 rounded"
             title="Next Announcement Item"
             aria-label="Next Promo Notification"
