@@ -30,6 +30,7 @@ export interface Product {
   reviews: Review[];
   detailImageUrl?: string;
   detailText?: string;
+  deliveryTime?: string;
 }
 
 export interface CartItem {
@@ -47,6 +48,9 @@ export interface Purchase {
   provider: DownloadProvider;
   unlockToken: string;
   ratingSubmitted?: boolean;
+  status?: 'pending' | 'completed' | 'not-ready';
+  orderId?: string;
+  deliveryTime?: string;
 }
 
 export interface UserProfile {

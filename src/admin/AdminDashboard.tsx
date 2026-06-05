@@ -62,7 +62,8 @@ export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin,
     fileFormat: 'ZIP File',
     version: '1.0.0',
     detailImageUrl: '',
-    detailText: ''
+    detailText: '',
+    deliveryTime: '5 Minutes - 2 Hours'
   });
 
   // Category Form State
@@ -267,7 +268,8 @@ export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin,
       version: productForm.version,
       reviews: editingProductId ? (products.find(p => p.id === editingProductId)?.reviews || []) : [],
       detailImageUrl: productForm.detailImageUrl,
-      detailText: productForm.detailText
+      detailText: productForm.detailText,
+      deliveryTime: productForm.deliveryTime || '5 Minutes - 2 Hours'
     };
 
     let isCloudSynced = true;
@@ -323,7 +325,8 @@ export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin,
           fileFormat: p.fileFormat || 'ZIP Package',
           version: p.version || '1.0.0',
           detailImageUrl: p.detailImageUrl || '',
-          detailText: p.detailText || ''
+          detailText: p.detailText || '',
+          deliveryTime: p.deliveryTime || '5 Minutes - 2 Hours'
         });
       }
     } else if (currentPath === '/admin/products/add') {
@@ -345,7 +348,8 @@ export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin,
         fileFormat: 'ZIP File',
         version: '1.0.0',
         detailImageUrl: '',
-        detailText: ''
+        detailText: '',
+        deliveryTime: '5 Minutes - 2 Hours'
       });
     }
   }, [currentPath, products]);
@@ -1124,6 +1128,18 @@ export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin,
                       onChange={(e) => setProductForm({...productForm, fileFormat: e.target.value})}
                       placeholder="e.g. ZIP Archive, Figma UX, JSON"
                       className="w-full p-2.5 bg-zinc-950 border border-zinc-800 rounded-xl outline-none focus:border-indigo-550 text-white text-xs font-mono"
+                    />
+                  </div>
+
+                  {/* Delivery time duration */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-mono tracking-widest text-amber-500 block uppercase font-bold">Delivery Time / Duration</label>
+                    <input
+                      type="text"
+                      value={productForm.deliveryTime}
+                      onChange={(e) => setProductForm({...productForm, deliveryTime: e.target.value})}
+                      placeholder="e.g. 5 Minutes - 2 Hours, Instantly (5 mins)"
+                      className="w-full p-2.5 bg-zinc-950 border border-zinc-800 rounded-xl outline-none focus:border-[#d97706] text-white text-xs"
                     />
                   </div>
 
