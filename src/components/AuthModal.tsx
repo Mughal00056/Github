@@ -57,7 +57,7 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess }: AuthModal
           email: email.trim(),
           name: name.trim() || email.trim().split('@')[0],
           avatar: selectedAvatar,
-          isAdmin: email.trim().toLowerCase() === 'mrflop786@gmail.com', // Admin indicator
+          isAdmin: ['mrflop786@gmail.com', 'aneesabid0012@gmail.com'].includes(email.trim().toLowerCase()), // Admin indicator
           wishlistIds: [],
           blocked: false
         }, { merge: true });

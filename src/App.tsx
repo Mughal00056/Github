@@ -709,7 +709,7 @@ export default function App() {
         name: finalName,
         avatar: finalAvatar,
         isLoggedIn: true,
-        isAdmin: firebaseProfile?.isAdmin || false,
+        isAdmin: firebaseProfile?.isAdmin || ['mrflop786@gmail.com', 'aneesabid0012@gmail.com'].includes(email.toLowerCase()),
         wishlistIds: finalWishlist,
         purchasedProducts: mergedPurchasedProducts
       });
@@ -812,6 +812,15 @@ export default function App() {
   // Featured and trending asset definitions
   const trendingAssets = products.filter(p => p.rating >= 4.8).slice(0, 3);
   const spotlightProducts = products.filter(p => p.rating >= 4.7).slice(0, 3);
+
+  // Safeguard and bounds-check spotlightIndex
+  useEffect(() => {
+    if (spotlightProducts.length > 0 && spotlightIndex >= spotlightProducts.length) {
+      setSpotlightIndex(0);
+    }
+  }, [spotlightProducts.length, spotlightIndex]);
+
+  const currentSpotlight = spotlightProducts[spotlightIndex] || spotlightProducts[0];
 
   // Synchronize path state on browser back/forward history transitions
   useEffect(() => {
@@ -1116,13 +1125,13 @@ export default function App() {
                     <div className="absolute inset-0 rounded-2xl bg-gradient-to-tr from-indigo-500/30 to-violet-500/30 opacity-60 blur-md group-hover:opacity-100 transition-opacity" />
                     <div className="aspect-video sm:aspect-[4/3] md:aspect-video w-full rounded-2xl overflow-hidden border border-white/50 dark:border-white/10 shadow-lg relative z-10 bg-zinc-150/50 dark:bg-black/40">
                       <img
-                        src={spotlightProducts[spotlightIndex].previewImage}
-                        alt={spotlightProducts[spotlightIndex].title}
+                        src={currentSpotlight?.previewImage}
+                        alt={currentSpotlight?.title}
                         className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-103 select-none pointer-events-none"
                       />
                     </div>
                     <div className="absolute top-3 left-3 bg-zinc-950/80 backdrop-blur-md text-white font-mono text-[9px] font-bold px-2.5 py-1 rounded-md uppercase tracking-wider z-20 border border-white/10">
-                      {spotlightProducts[spotlightIndex].category}
+                      {currentSpotlight?.category}
                     </div>
                   </div>
 
@@ -1135,20 +1144,20 @@ export default function App() {
                             <Star key={i} className="w-3.5 h-3.5 fill-current" />
                           ))}
                         </div>
-                        <span className="text-zinc-650 dark:text-zinc-400 font-mono text-[11px]">({spotlightProducts[spotlightIndex].reviewsCount} Verified Ratings)</span>
+                        <span className="text-zinc-650 dark:text-zinc-400 font-mono text-[11px]">({currentSpotlight?.reviewsCount} Verified Ratings)</span>
                       </div>
                       
                       <h3 className="text-lg sm:text-2xl font-display font-black text-zinc-900 dark:text-white leading-snug uppercase tracking-tight">
-                        {spotlightProducts[spotlightIndex].title}
+                        {currentSpotlight?.title}
                       </h3>
                       
                       <p className="text-xs sm:text-[13px] text-zinc-600 dark:text-slate-350 max-w-2xl leading-relaxed">
-                        {spotlightProducts[spotlightIndex].shortDescription}
+                        {currentSpotlight?.shortDescription}
                       </p>
                     </div>
 
                     <div className="flex flex-wrap gap-1.5 pt-1">
-                      {spotlightProducts[spotlightIndex].tags.slice(0, 3).map((tag) => (
+                      {currentSpotlight?.tags.slice(0, 3).map((tag) => (
                         <span key={tag} className="text-[9px] sm:text-[10px] font-mono bg-zinc-200/50 dark:bg-white/5 border border-zinc-300/30 dark:border-white/5 py-1 px-2.5 rounded-md text-zinc-700 dark:text-slate-300 uppercase">
                           #{tag}
                         </span>
@@ -1160,20 +1169,20 @@ export default function App() {
                       <div className="flex flex-col">
                         <span className="text-[10px] font-mono uppercase text-zinc-400 dark:text-slate-500">Asset Cost</span>
                         <span className="text-lg sm:text-xl font-mono font-black text-indigo-650 dark:text-indigo-400">
-                          {spotlightProducts[spotlightIndex].price === 0 ? 'FREE' : `$${spotlightProducts[spotlightIndex].price}`}
+                          {currentSpotlight?.price === 0 ? 'FREE' : `$${currentSpotlight?.price}`}
                         </span>
                       </div>
                       
                       <div className="ml-auto flex items-center gap-2">
                         <button
-                          onClick={() => setSelectedProduct(spotlightProducts[spotlightIndex])}
+                          onClick={() => currentSpotlight && setSelectedProduct(currentSpotlight)}
                           className="px-3.5 sm:px-4.5 py-2 bg-zinc-200/60 dark:bg-white/5 hover:bg-zinc-300/60 dark:hover:bg-white/10 text-zinc-800 dark:text-zinc-100 text-xs font-semibold rounded-xl active:scale-98 transition-all cursor-pointer font-sans border border-transparent dark:border-white/5"
                         >
                           Details
                         </button>
 
                         <button
-                          onClick={() => handleBuyNow(spotlightProducts[spotlightIndex])}
+                          onClick={() => currentSpotlight && handleBuyNow(currentSpotlight)}
                           className="px-4.5 sm:px-5 py-2 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white text-xs font-bold rounded-xl active:scale-98 transition-all cursor-pointer font-sans shadow-md shadow-indigo-500/10"
                         >
                           Checkout
