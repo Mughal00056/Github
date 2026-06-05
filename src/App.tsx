@@ -465,25 +465,36 @@ export default function App() {
   };
 
   // Add to Cart Action
-  const handleAddToCart = (product: Product) => {
+  const handleAddToCart = (product: Product, quantityIn: number = 1) => {
     // Check if product exists in cart
     const exists = cart.some(item => item.product.id === product.id);
     if (exists) {
-      triggerToast('💼 Item is already inside your shopping cart!');
+      setCart(prev => prev.map(item => 
+        item.product.id === product.id 
+          ? { ...item, quantity: (item.quantity || 1) + quantityIn }
+          : item
+      ));
+      triggerToast('🛒 Cart updated with more quantity!');
       setIsCartOpen(true);
       return;
     }
 
-    setCart(prev => [...prev, { product }]);
+    setCart(prev => [...prev, { product, quantity: quantityIn }]);
     triggerToast('🛒 Product added to shopping cart!');
   };
 
   // Quick single item Buy Now action
-  const handleBuyNow = (product: Product) => {
-    // Put alone inside cart and launch checkout directly
+  const handleBuyNow = (product: Product, quantityIn: number = 1) => {
+    // Put inside cart and launch checkout directly
     const inCart = cart.some(item => item.product.id === product.id);
     if (!inCart) {
-      setCart([{ product }]);
+      setCart([{ product, quantity: quantityIn }]);
+    } else {
+      setCart(prev => prev.map(item => 
+        item.product.id === product.id
+          ? { ...item, quantity: quantityIn }
+          : item
+      ));
     }
     setAppliedPromo('');
     setDiscountAmount(0);
@@ -1405,7 +1416,7 @@ export default function App() {
             isOpen={isCheckoutOpen}
             onClose={() => setIsCheckoutOpen(false)}
             cart={cart}
-            subtotal={cart.reduce((sum, item) => sum + item.product.price, 0)}
+            subtotal={cart.reduce((sum, item) => sum + item.product.price * (item.quantity || 1), 0)}
             discountAmount={discountAmount}
             discountCode={appliedPromo}
             onPurchaseSuccess={handlePurchaseSuccess}

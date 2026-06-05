@@ -10,8 +10,7 @@ import {
   Download, 
   Copy,
   Check,
-  ShieldAlert,
-  Terminal
+  ShieldAlert
 } from 'lucide-react';
 import { Product, CartItem, DownloadProvider } from '../types';
 
@@ -203,8 +202,15 @@ export default function CheckoutModal({
               <div className="space-y-1 mt-1 font-sans">
                 {cart.map(item => (
                   <div key={item.product.id} className="flex justify-between font-medium">
-                    <span className="truncate text-zinc-700 dark:text-zinc-300 max-w-[250px]">{item.product.title}</span>
-                    <span className="font-mono font-bold text-zinc-900 dark:text-zinc-150">${item.product.price}</span>
+                    <span className="truncate text-zinc-700 dark:text-zinc-300 max-w-[250px] flex items-center gap-1.5">
+                      <span>{item.product.title}</span>
+                      {(item.quantity || 1) > 1 && (
+                        <span className="text-[10px] font-mono font-bold bg-indigo-50 dark:bg-indigo-950/60 px-1.5 py-0.5 rounded text-indigo-600 dark:text-indigo-400 border border-indigo-150/20">
+                          x{item.quantity}
+                        </span>
+                      )}
+                    </span>
+                    <span className="font-mono font-bold text-zinc-900 dark:text-zinc-150">${item.product.price * (item.quantity || 1)}</span>
                   </div>
                 ))}
               </div>
@@ -423,8 +429,7 @@ export default function CheckoutModal({
                 }}
                 className="w-full py-2.5 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-indigo-600 dark:text-indigo-400 font-sans font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5 border border-indigo-500/10 cursor-pointer"
               >
-                <Terminal className="w-4 h-4 text-indigo-500" />
-                <span>Go to Admin Portal / Dashboard</span>
+                <span>Go to Admin Dashboard</span>
               </button>
             </div>
 
@@ -501,8 +506,7 @@ export default function CheckoutModal({
                 }}
                 className="w-full py-2.5 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-indigo-600 dark:text-indigo-400 font-sans font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5 border border-indigo-500/10 cursor-pointer"
               >
-                <Terminal className="w-4 h-4 text-indigo-505" />
-                <span>Go to Admin Portal / Dashboard</span>
+                <span>Go to Admin Dashboard</span>
               </button>
 
               <button

@@ -131,10 +131,10 @@ export default function Navbar({
             {user.isAdmin && (
               <button
                 onClick={() => setIsAdminPanelOpen(true)}
-                className="p-2.5 text-zinc-500 hover:text-indigo-600 dark:text-slate-450 dark:hover:text-indigo-400 rounded-lg bg-zinc-100/50 dark:bg-white/5 hover:bg-zinc-100 dark:hover:bg-white/10 border border-transparent dark:border-white/10 transition-colors cursor-pointer"
-                title="Admin Panel"
+                className="hidden sm:inline-flex px-3 py-1.5 text-xs font-sans font-bold text-indigo-600 hover:text-white dark:text-indigo-400 bg-indigo-50 hover:bg-indigo-600 dark:bg-indigo-950/40 dark:hover:bg-indigo-600 rounded-xl border border-indigo-150/40 dark:border-indigo-800/40 transition-all cursor-pointer whitespace-nowrap active:scale-95"
+                title="Switch to Admin Dashboard"
               >
-                <Terminal className="w-5 h-5" />
+                Admin Panel
               </button>
             )}
             <button

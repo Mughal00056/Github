@@ -451,7 +451,7 @@ export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin,
             <h3 className="text-xs font-mono font-black text-white tracking-widest uppercase">AetherVault</h3>
             <p className="text-[10px] text-emerald-400 font-mono flex items-center gap-1 mt-0.5">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              <span>TERMINAL STATUS: ACTIVE</span>
+              <span>ADMIN CONTROL: ACTIVE</span>
             </p>
           </div>
         </div>

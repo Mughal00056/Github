@@ -70,7 +70,7 @@ export default function CartDrawer({
     setPromoError('');
   };
 
-  const subtotal = cart.reduce((acc, item) => acc + item.product.price, 0);
+  const subtotal = cart.reduce((acc, item) => acc + item.product.price * (item.quantity || 1), 0);
   const discountAmount = Math.round((subtotal * discountPercent) / 100);
   const netTotal = Math.max(0, subtotal - discountAmount);
 
@@ -152,8 +152,13 @@ export default function CartDrawer({
                     <div className="flex-1 min-w-0">
                       <span className="text-[10px] font-mono text-zinc-400 uppercase tracking-wider">{item.product.category}</span>
                       <h4 className="text-xs font-bold text-zinc-900 dark:text-zinc-100 truncate">{item.product.title}</h4>
-                      <p className="text-xs font-mono font-bold text-zinc-900 dark:text-zinc-300 mt-1">
-                        {item.product.price === 0 ? 'FREE' : `$${item.product.price}`}
+                      <p className="text-xs font-mono font-bold text-zinc-900 dark:text-zinc-300 mt-1 flex items-center gap-2">
+                        <span>{item.product.price === 0 ? 'FREE' : `$${item.product.price}`}</span>
+                        {(item.quantity || 1) > 1 && (
+                          <span className="text-[9px] font-mono font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 px-1.5 py-0.5 rounded border border-indigo-100/30 dark:border-indigo-800/20">
+                            Qty: {item.quantity}
+                          </span>
+                        )}
                       </p>
                     </div>
                     <button

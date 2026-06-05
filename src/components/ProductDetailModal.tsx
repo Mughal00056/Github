@@ -21,8 +21,8 @@ import { Product, Review, UserProfile } from '../types';
 interface ProductDetailModalProps {
   product: Product;
   onClose: () => void;
-  onAddToCart: (product: Product) => void;
-  onBuyNow: (product: Product) => void;
+  onAddToCart: (product: Product, quantity?: number) => void;
+  onBuyNow: (product: Product, quantity?: number) => void;
   isPurchased: boolean;
   onAddReview: (productId: string, review: Omit<Review, 'id' | 'date'>) => void;
   user: UserProfile;
@@ -276,6 +276,18 @@ export default function ProductDetailModal({
                         />
                       </div>
 
+                      {/* Image URL Input */}
+                      <div>
+                        <span className="text-[10px] text-zinc-500 uppercase block font-mono mb-1">Image URL</span>
+                        <input
+                          type="url"
+                          value={imageUrl}
+                          onChange={(e) => setImageUrl(e.target.value)}
+                          placeholder="https://example.com/logo-or-banner.jpg"
+                          className="w-full text-xs p-3 bg-white dark:bg-[#040404] border border-zinc-205 dark:border-zinc-805 rounded-xl focus:border-indigo-500 outline-none text-zinc-855 dark:text-zinc-100 placeholder-zinc-400 font-mono"
+                        />
+                      </div>
+
                       {/* Quantity adjuster */}
                       <div className="flex items-center justify-between py-2 border-t border-zinc-200/50 dark:border-zinc-805 mt-1 select-none">
                         <span className="text-[10px] font-mono font-bold text-zinc-450 dark:text-zinc-500 uppercase tracking-widest">
@@ -307,10 +319,7 @@ export default function ProductDetailModal({
                         <button
                           type="button"
                           onClick={() => {
-                            onAddToCart({
-                              ...product,
-                              title: `${product.title} (Qty: ${quantity})`
-                            });
+                            onAddToCart(product, quantity);
                           }}
                           className="py-2.5 bg-zinc-200/55 hover:bg-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 font-sans font-bold text-xs rounded-xl transition-all cursor-pointer text-center text-zinc-800 dark:text-zinc-100 active:scale-98"
                         >
@@ -320,10 +329,7 @@ export default function ProductDetailModal({
                         <button
                           type="button"
                           onClick={() => {
-                            onBuyNow({
-                              ...product,
-                              title: `${product.title} (Qty: ${quantity})`
-                            });
+                            onBuyNow(product, quantity);
                             onClose();
                           }}
                           className="py-2.5 bg-indigo-600 hover:bg-indigo-500 font-sans font-black text-xs rounded-xl text-white transition-all cursor-pointer text-center active:scale-98 shadow-md shadow-indigo-550/10"
@@ -615,7 +621,10 @@ export default function ProductDetailModal({
                     {/* Buy now */}
                     <button
                       id="details-buy-btn"
-                      onClick={() => onBuyNow(product)}
+                      onClick={() => {
+                        onBuyNow(product, quantity);
+                        onClose();
+                      }}
                       className="w-full py-3 bg-zinc-900 dark:bg-zinc-100 hover:bg-zinc-850 dark:hover:bg-zinc-200 text-white dark:text-zinc-950 font-sans font-bold text-sm rounded-xl active:scale-98 transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-md"
                     >
                       <span>Purchase License Now</span>
@@ -625,7 +634,7 @@ export default function ProductDetailModal({
                     {/* Add to Cart */}
                     <button
                       id="details-add-to-cart-btn"
-                      onClick={() => onAddToCart(product)}
+                      onClick={() => onAddToCart(product, quantity)}
                       className="w-full py-2.5 bg-zinc-100 hover:bg-zinc-200/80 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 font-sans font-semibold text-xs rounded-xl active:scale-98 transition-all cursor-pointer"
                     >
                       Add to Shopping Cart
