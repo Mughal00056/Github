@@ -232,3 +232,52 @@ export async function updatePromoCodes(codes: { code: string; percent: number; d
   }
 }
 
+export async function getFirebaseAnnouncements() {
+  const path = 'settings/announcements';
+  try {
+    const docRef = doc(db, 'settings', 'announcements');
+    const snap = await getDoc(docRef);
+    if (snap.exists() && snap.data()?.list) {
+      return snap.data().list as string[];
+    }
+  } catch (error) {
+    console.warn('Silent fallback for announcements get:', error);
+  }
+  return null;
+}
+
+export async function updateFirebaseAnnouncements(list: string[]) {
+  const path = 'settings/announcements';
+  try {
+    const docRef = doc(db, 'settings', 'announcements');
+    await setDoc(docRef, { list }, { merge: true });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
+export async function getFirebaseCategories() {
+  const path = 'settings/categories';
+  try {
+    const docRef = doc(db, 'settings', 'categories');
+    const snap = await getDoc(docRef);
+    if (snap.exists() && snap.data()?.list) {
+      return snap.data().list as any[];
+    }
+  } catch (error) {
+    console.warn('Silent fallback for categories get:', error);
+  }
+  return null;
+}
+
+export async function updateFirebaseCategories(list: any[]) {
+  const path = 'settings/categories';
+  try {
+    const docRef = doc(db, 'settings', 'categories');
+    await setDoc(docRef, { list }, { merge: true });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
+

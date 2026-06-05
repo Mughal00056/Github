@@ -89,31 +89,47 @@ export default function Navbar({
   });
 
   React.useEffect(() => {
-    fetch('/api/categories')
-      .then(r => r.ok ? r.json() : null)
-      .then(data => {
-        if (data && Array.isArray(data) && data.length > 0) {
-          const names = ['All', ...data.map((c: any) => c.name)];
+    const fetchCats = async () => {
+      try {
+        const { getFirebaseCategories } = await import('../firebase');
+        const fbCats = await getFirebaseCategories();
+        if (fbCats && fbCats.length > 0) {
+          const names = ['All', ...fbCats.map((c: any) => c.name)];
           setDynCategories(names);
-          localStorage.setItem('cached_categories', JSON.stringify(data));
-        } else {
+          return;
+        }
+      } catch (err) {
+        console.warn('Firebase companion bypass in Navbar:', err);
+      }
+
+      fetch('/api/categories')
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          if (data && Array.isArray(data) && data.length > 0) {
+            const names = ['All', ...data.map((c: any) => c.name)];
+            setDynCategories(names);
+            localStorage.setItem('cached_categories', JSON.stringify(data));
+          } else {
+            setDynCategories(CATEGORIES);
+          }
+        })
+        .catch(err => {
+          console.warn('Unable to get dynamic categories, using default list:', err);
+          const cached = localStorage.getItem('cached_categories');
+          if (cached) {
+            try {
+              const parsed = JSON.parse(cached);
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                setDynCategories(['All', ...parsed.map((c: any) => c.name)]);
+                return;
+              }
+            } catch (e) {}
+          }
           setDynCategories(CATEGORIES);
-        }
-      })
-      .catch(err => {
-        console.warn('Unable to get dynamic categories, using default list:', err);
-        const cached = localStorage.getItem('cached_categories');
-        if (cached) {
-          try {
-            const parsed = JSON.parse(cached);
-            if (Array.isArray(parsed) && parsed.length > 0) {
-              setDynCategories(['All', ...parsed.map((c: any) => c.name)]);
-              return;
-            }
-          } catch (e) {}
-        }
-        setDynCategories(CATEGORIES);
-      });
+        });
+    };
+
+    fetchCats();
   }, [activeCategory]);
 
   return (

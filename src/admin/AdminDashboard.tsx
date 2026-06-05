@@ -6,7 +6,7 @@ import {
   Hourglass, Ban, Eye, Edit, Trash2, Plus, Star, ToggleLeft, 
   ToggleRight, Search, FileDown, ShieldCheck, Mail, Calendar, Key, AlertTriangle, ArrowLeft, Menu, X
 } from 'lucide-react';
-import { db, auth, updatePurchaseStatus, getPaymentDetails, updatePaymentDetails, updatePromoCodes } from '../firebase';
+import { db, auth, updatePurchaseStatus, getPaymentDetails, updatePaymentDetails, updatePromoCodes, updateFirebaseAnnouncements, updateFirebaseCategories } from '../firebase';
 import { collection, getDocs, doc, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { Product, Review, DownloadProvider } from '../types';
 import { INITIAL_PRODUCTS } from '../data';
@@ -466,7 +466,11 @@ export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin,
     e.preventDefault();
     if (!newCategoryName.trim()) return;
     try {
-      const payload = { name: newCategoryName.trim(), image: newCategoryImage.trim() };
+      const payload = { name: newCategoryName.trim(), image: newCategoryImage.trim() || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&q=80&w=150&h=150' };
+      const nextCategories = [...categories, payload];
+      
+      await updateFirebaseCategories(nextCategories).catch(err => console.warn(err));
+      
       const res = await fetch('/api/categories', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -475,6 +479,13 @@ export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin,
       if (res.ok) {
         const data = await res.json();
         setCategories([...categories, data.category]);
+        localStorage.setItem('cached_categories', JSON.stringify([...categories, data.category]));
+        setNewCategoryName('');
+        setNewCategoryImage('');
+        alert("New asset category category added.");
+      } else {
+        setCategories(nextCategories);
+        localStorage.setItem('cached_categories', JSON.stringify(nextCategories));
         setNewCategoryName('');
         setNewCategoryImage('');
         alert("New asset category category added.");
@@ -487,8 +498,12 @@ export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin,
   const handleDeleteCategory = async (name: string) => {
     if (!window.confirm(`Delete category "${name}"?`)) return;
     try {
-      await fetch(`/api/categories/${name}`, { method: 'DELETE' });
-      setCategories(categories.filter(c => c.name !== name));
+      const nextCategories = categories.filter(c => c.name !== name);
+      await updateFirebaseCategories(nextCategories).catch(err => console.warn(err));
+      
+      await fetch(`/api/categories/${name}`, { method: 'DELETE' }).catch(err => console.warn(err));
+      setCategories(nextCategories);
+      localStorage.setItem('cached_categories', JSON.stringify(nextCategories));
     } catch (err) {
       console.warn(err);
     }
@@ -500,6 +515,8 @@ export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin,
     if (!newAnnouncementText.trim()) return;
     const nextList = [...announcements, newAnnouncementText.trim()];
     try {
+      await updateFirebaseAnnouncements(nextList).catch(err => console.warn(err));
+      
       const res = await fetch('/api/announcements', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -510,6 +527,11 @@ export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin,
         localStorage.setItem('cached_announcements', JSON.stringify(nextList));
         setNewAnnouncementText('');
         alert("Top bar announcement promo banner added successfully!");
+      } else {
+        setAnnouncements(nextList);
+        localStorage.setItem('cached_announcements', JSON.stringify(nextList));
+        setNewAnnouncementText('');
+        alert("Top bar announcement promo banner added!");
       }
     } catch (err) {
       console.warn("Could not save announcement ticker:", err);
@@ -520,12 +542,18 @@ export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin,
     if (!window.confirm("Verify: erase this headline ticker permanently from the storefront?")) return;
     const nextList = announcements.filter((_, idx) => idx !== indexToDelete);
     try {
+      await updateFirebaseAnnouncements(nextList).catch(err => console.warn(err));
+      
       const res = await fetch('/api/announcements', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ announcements: nextList })
       });
       if (res.ok) {
+        setAnnouncements(nextList);
+        localStorage.setItem('cached_announcements', JSON.stringify(nextList));
+        alert("Announcement header promo ticker erased.");
+      } else {
         setAnnouncements(nextList);
         localStorage.setItem('cached_announcements', JSON.stringify(nextList));
         alert("Announcement header promo ticker erased.");
@@ -540,6 +568,8 @@ export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin,
     const nextList = [...announcements];
     nextList[index] = nextText.trim();
     try {
+      await updateFirebaseAnnouncements(nextList).catch(err => console.warn(err));
+      
       const res = await fetch('/api/announcements', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -550,6 +580,11 @@ export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin,
         localStorage.setItem('cached_announcements', JSON.stringify(nextList));
         setEditingAnnounceIdx(null);
         alert("Dynamic header banner edited successfully!");
+      } else {
+        setAnnouncements(nextList);
+        localStorage.setItem('cached_announcements', JSON.stringify(nextList));
+        setEditingAnnounceIdx(null);
+        alert("Dynamic header banner edited.");
       }
     } catch (err) {
       console.warn("Could not edit announcement ticker:", err);
@@ -1751,8 +1786,8 @@ export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin,
 
                 {/* Right Card: Dynamic Announcements Ticker Management */}
                 <div className="bg-zinc-900 border border-zinc-800 p-5 rounded-2xl space-y-5 h-fit">
-                  <h3 className="text-xs font-mono font-black text-white uppercase tracking-widest border-b border-zinc-800 pb-3 mb-4 block">
-                    STOREFRONT PROMO HEADLINES (ANNOUNCEMENT TICKER)
+                  <h3 className="text-xs font-mono font-black text-rose-500 uppercase tracking-widest border-b border-zinc-800 pb-3 mb-4 block">
+                    PROMO ANNOUNCEMENTS TICKER
                   </h3>
 
                   <div className="space-y-3.5 max-h-72 overflow-y-auto pr-1">

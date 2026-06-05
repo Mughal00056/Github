@@ -37,7 +37,7 @@ import CheckoutModal from './components/CheckoutModal';
 import Dashboard from './components/Dashboard';
 import AuthModal from './components/AuthModal';
 import AdminDashboard from './admin/AdminDashboard';
-import { db, syncUserProfile, getUserProfile, recordPurchase, getUserPurchases, logoutUser } from './firebase';
+import { db, syncUserProfile, getUserProfile, recordPurchase, getUserPurchases, logoutUser, getFirebaseAnnouncements, getFirebaseCategories } from './firebase';
 
 const CIRCLE_CATEGORIES = [
   { name: 'All', image: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&q=80&w=150&h=150' },
@@ -212,6 +212,22 @@ export default function App() {
     ];
   });
 
+  const [categories, setCategories] = useState<any[]>(() => {
+    const cached = localStorage.getItem('cached_categories');
+    if (cached) {
+      try { return JSON.parse(cached); } catch (e) {}
+    }
+    return [
+      { name: 'Web Templates', image: 'https://images.unsplash.com/photo-1507238691740-187a5b1d37b8?auto=format&fit=crop&q=80&w=150&h=150' },
+      { name: 'UI Kits', image: 'https://images.unsplash.com/photo-1541462608143-67571c6738dd?auto=format&fit=crop&q=80&w=150&h=150' },
+      { name: 'Scripts', image: 'https://images.unsplash.com/photo-1555066931-4365d14bab8c?auto=format&fit=crop&q=80&w=150&h=150' },
+      { name: 'Plugins', image: 'https://images.unsplash.com/photo-1600132806370-bf17e65e942f?auto=format&fit=crop&q=80&w=150&h=150' },
+      { name: 'Graphics', image: 'https://images.unsplash.com/photo-1626785774573-4b799315345d?auto=format&fit=crop&q=80&w=150&h=150' },
+      { name: 'SaaS Tools', image: 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?auto=format&fit=crop&q=80&w=150&h=150' },
+      { name: 'AI Prompts', image: 'https://images.unsplash.com/photo-1675557009875-436f09780264?auto=format&fit=crop&q=80&w=150&h=150' }
+    ];
+  });
+
   // Spotlight Product Slider State
   const [spotlightIndex, setSpotlightIndex] = useState<number>(0);
 
@@ -261,17 +277,60 @@ export default function App() {
     };
   }, [announcements]);
 
-  // Synchronize dynamic announcement lists from server API
+  // Synchronize dynamic announcement lists from server API / Firebase
   useEffect(() => {
-    fetch('/api/announcements')
-      .then((r) => r.ok ? r.json() : null)
-      .then((data) => {
-        if (Array.isArray(data) && data.length > 0) {
-          setAnnouncements(data);
-          localStorage.setItem('cached_announcements', JSON.stringify(data));
+    const loadAnnouncements = async () => {
+      try {
+        const fbAnnounces = await getFirebaseAnnouncements();
+        if (fbAnnounces && fbAnnounces.length > 0) {
+          setAnnouncements(fbAnnounces);
+          localStorage.setItem('cached_announcements', JSON.stringify(fbAnnounces));
+          return;
         }
-      })
-      .catch((err) => console.warn("Could not sync announcements:", err));
+      } catch (err) {
+        console.warn("Firebase announcements load bypass:", err);
+      }
+
+      fetch('/api/announcements')
+        .then((r) => r.ok ? r.json() : null)
+        .then((data) => {
+          if (Array.isArray(data) && data.length > 0) {
+            setAnnouncements(data);
+            localStorage.setItem('cached_announcements', JSON.stringify(data));
+          }
+        })
+        .catch((err) => console.warn("Could not sync announcements:", err));
+    };
+
+    loadAnnouncements();
+  }, []);
+
+  // Synchronize dynamic categories lists from server API / Firebase
+  useEffect(() => {
+    const loadCategories = async () => {
+      try {
+        const fbCats = await getFirebaseCategories();
+        if (fbCats && fbCats.length > 0) {
+          setCategories(fbCats);
+          localStorage.setItem('cached_categories', JSON.stringify(fbCats));
+          return;
+        }
+      } catch (err) {
+        console.warn("Firebase categories load bypass:", err);
+      }
+
+      fetch('/api/categories')
+        .then((r) => r.ok ? r.json() : null)
+        .then((data) => {
+          if (Array.isArray(data) && data.length > 0) {
+            setCategories(data);
+            localStorage.setItem('cached_categories', JSON.stringify(data));
+          }
+        })
+        .catch((err) => console.warn("Could not sync categories:", err));
+    };
+
+    loadCategories();
   }, []);
 
   // Real-time synchronization of products with Firestore database
@@ -327,6 +386,50 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('aether-user', JSON.stringify(user));
   }, [user]);
+
+  // Periodically synchronizes client's purchased products matching orderId with the central /api/orders database state
+  useEffect(() => {
+    if (!user.isLoggedIn || !user.email) return;
+
+    const syncPendingOrderStatuses = async () => {
+      try {
+        const res = await fetch('/api/orders');
+        if (res.ok) {
+          const allOrders = await res.json();
+          const myOrders = allOrders.filter((o: any) => o.userEmail?.toLowerCase() === user.email.toLowerCase());
+
+          if (myOrders.length > 0) {
+            let needsUpdate = false;
+            const nextPurchased = user.purchasedProducts.map((p: any) => {
+              const matchingOrder = myOrders.find((o: any) => o.id === p.orderId || (o.items && o.items.some((item: any) => item.id === p.productId)));
+              if (matchingOrder) {
+                const mappedStatus = matchingOrder.paymentStatus === 'paid' ? 'completed' : 
+                                     matchingOrder.paymentStatus === 'not-ready' ? 'not-ready' : 'pending';
+                if (p.status !== mappedStatus) {
+                  needsUpdate = true;
+                  return { ...p, status: mappedStatus };
+                }
+              }
+              return p;
+            });
+
+            if (needsUpdate) {
+              setUser(prev => ({
+                ...prev,
+                purchasedProducts: nextPurchased
+              }));
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("Silent background status synchronizer bypass:", err);
+      }
+    };
+
+    syncPendingOrderStatuses();
+    const timer = setInterval(syncPendingOrderStatuses, 3000);
+    return () => clearInterval(timer);
+  }, [user.isLoggedIn, user.email, user.purchasedProducts]);
 
   // Reset side menu view when it closes
   useEffect(() => {
@@ -1085,6 +1188,52 @@ export default function App() {
               placeholder="Search UI components, templates..."
               className="w-full pl-9.5 pr-4 py-3 text-xs bg-zinc-100 dark:bg-zinc-900 border border-transparent rounded-xl outline-none text-zinc-900 dark:text-zinc-100 focus:ring-1 focus:ring-indigo-500"
             />
+          </div>
+
+          {/* AetherVault ka nicha wala All wala section (Dynamic Circular Categories Logos) */}
+          <div className="mt-8 mb-4 max-w-4xl mx-auto overflow-x-auto scrollbar-none py-1">
+            <div className="flex items-center justify-center gap-6 min-w-max px-4">
+              {[
+                { name: 'All', image: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&q=80&w=150&h=150' },
+                ...categories,
+                { name: 'Downloads', image: 'https://images.unsplash.com/photo-1618005198143-e5283b519a7f?auto=format&fit=crop&q=80&w=150&h=150', isDownload: true }
+              ].map((cat) => {
+                const isActive = activeCategory === cat.name;
+                return (
+                  <button
+                    key={cat.name}
+                    onClick={() => {
+                      if (cat.isDownload) {
+                        if (user.isLoggedIn) {
+                          setActiveCategory('Downloads');
+                        } else {
+                          setIsAuthModalOpen(true);
+                        }
+                      } else {
+                        setActiveCategory(cat.name);
+                      }
+                    }}
+                    className="flex flex-col items-center gap-2 group cursor-pointer focus:outline-none transition-transform active:scale-95"
+                  >
+                    <div className="relative">
+                      {/* Circle Boundary Glow if Active */}
+                      <div className={`absolute -inset-1 rounded-full bg-gradient-to-tr from-indigo-500 to-fuchsia-500 blur-sm opacity-0 group-hover:opacity-40 transition-opacity duration-300 ${isActive ? 'opacity-100 animate-pulse' : ''}`} />
+                      <div className={`w-14 h-14 rounded-full overflow-hidden border-2 relative z-10 transition-transform duration-300 ${isActive ? 'border-indigo-600 scale-103 shadow-md' : 'border-zinc-200 dark:border-zinc-800 hover:scale-103'}`}>
+                        <img 
+                          src={cat.image} 
+                          alt={cat.name} 
+                          className="w-full h-full object-cover select-none pointer-events-none"
+                          referrerPolicy="no-referrer"
+                        />
+                      </div>
+                    </div>
+                    <span className={`text-[11px] font-sans font-extrabold tracking-tight transition-colors duration-300 ${isActive ? 'text-indigo-600 dark:text-indigo-400 font-black' : 'text-zinc-550 dark:text-slate-400 group-hover:text-zinc-900 dark:group-hover:text-white'}`}>
+                      {cat.name}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           {/* Space divider */}

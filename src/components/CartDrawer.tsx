@@ -114,7 +114,7 @@ export default function CartDrawer({
       setPromoError('');
     } else {
       const allowedCodes = activePromos.filter(p => !p.code.startsWith('__')).map(p => p.code).slice(0, 4).join(', ');
-      setPromoError(`Unknown promo code. Try ${allowedCodes || 'AETHER20 or FREEBIE'}!`);
+      setPromoError(`Try ${allowedCodes || 'AETHER20, WELCOME20, FREEBIE, AETHER50'}!`);
       setPromoSuccess('');
     }
   };
