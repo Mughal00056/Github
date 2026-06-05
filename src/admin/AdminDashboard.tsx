@@ -4,9 +4,9 @@ import {
   BarChart3, Box, Folder, ShoppingBag, Users, Ticket, 
   CreditCard, TrendingUp, DollarSign, Activity, LogOut, CheckCircle2, 
   Hourglass, Ban, Eye, Edit, Trash2, Plus, Star, ToggleLeft, 
-  ToggleRight, Search, FileDown, ShieldCheck, Mail, Calendar, Key, AlertTriangle, ArrowLeft
+  ToggleRight, Search, FileDown, ShieldCheck, Mail, Calendar, Key, AlertTriangle, ArrowLeft, Menu, X
 } from 'lucide-react';
-import { db, auth, updatePurchaseStatus } from '../firebase';
+import { db, auth, updatePurchaseStatus, getPaymentDetails, updatePaymentDetails, updatePromoCodes } from '../firebase';
 import { collection, getDocs, doc, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { Product, Review, DownloadProvider } from '../types';
 import { INITIAL_PRODUCTS } from '../data';
@@ -21,6 +21,8 @@ interface AdminDashboardProps {
 
 export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin, productsRef, onProductsUpdated }: AdminDashboardProps) {
   const adminEmail = auth.currentUser?.email || 'mrflop786@gmail.com';
+  // Mobile drawer panel toggle state
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   // Database status states
   const [products, setProducts] = useState<Product[]>(productsRef);
   const [categories, setCategories] = useState<any[]>([]);
@@ -127,6 +129,20 @@ export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin,
         if (userRes) setUsers(userRes);
         if (ordRes) setOrders(ordRes);
         if (catRes) setCategories(catRes);
+
+        // Fetch systems escrow config elements
+        try {
+          const liveSettings = await getPaymentDetails();
+          if (liveSettings) {
+            setSettings({
+              easypaisaNumber: liveSettings.easypaisaNumber || '0300-1122334',
+              jazzcashNumber: liveSettings.jazzcashNumber || '0321-5556677',
+              cryptoAddress: liveSettings.cryptoAddress || '0x8fae32bc117a78e5ab924aa91b0c9a41ccde35ec'
+            });
+          }
+        } catch (setErr) {
+          console.warn('Could not load escrow agent account details:', setErr);
+        }
 
         // Get live Firestore user list fallback
         if (!userRes || userRes.length === 0) {
@@ -320,8 +336,21 @@ export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin,
       });
       // Update local state list
       const updated = coupons.filter(c => c.code !== code);
-      setCoupons([...updated, payload]);
+      const newCoupons = [...updated, payload];
+      setCoupons(newCoupons);
       setCouponForm({ code: '', discountType: 'percent', discountValue: 15, expiryDate: '2026-12-31', active: true });
+
+      // Live Firestore promoCodes update
+      try {
+        await updatePromoCodes(newCoupons.map(c => ({
+          code: c.code,
+          percent: Number(c.discountValue) || 10,
+          description: `${c.discountValue}% Off coupon`
+        })));
+      } catch (fErr) {
+        console.warn('Could not sync coupon to Firestore settings:', fErr);
+      }
+
       alert(`Coupon code ${code} initialized successfully.`);
     } catch (err: any) {
       alert("Error adding coupon rules: " + err.message);
@@ -338,7 +367,18 @@ export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...coup, active: updatedActive })
       });
-      setCoupons(coupons.map(c => c.code === code ? { ...c, active: updatedActive } : c));
+      const updated = coupons.map(c => c.code === code ? { ...c, active: updatedActive } : c);
+      setCoupons(updated);
+
+      try {
+        await updatePromoCodes(updated.map(c => ({
+          code: c.code,
+          percent: Number(c.discountValue) || 10,
+          description: `${c.discountValue}% Off coupon`
+        })));
+      } catch (fErr) {
+        console.warn('Could not sync coupon to Firestore settings:', fErr);
+      }
     } catch (err) {
       console.warn(err);
     }
@@ -348,7 +388,18 @@ export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin,
     if (!window.confirm(`Delete coupon rules for code ${code}?`)) return;
     try {
       await fetch(`/api/coupons/${code}`, { method: 'DELETE' });
-      setCoupons(coupons.filter(c => c.code !== code));
+      const updated = coupons.filter(c => c.code !== code);
+      setCoupons(updated);
+
+      try {
+        await updatePromoCodes(updated.map(c => ({
+          code: c.code,
+          percent: Number(c.discountValue) || 10,
+          description: `${c.discountValue}% Off coupon`
+        })));
+      } catch (fErr) {
+        console.warn('Could not sync coupon deletion to Firestore settings:', fErr);
+      }
     } catch (err) {
       console.warn(err);
     }
@@ -451,8 +502,13 @@ export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin,
   };
 
   // Settings Save
-  const handleSaveSettings = () => {
-    alert("Administrative escrow setup values synced on server registers.");
+  const handleSaveSettings = async () => {
+    try {
+      await updatePaymentDetails(settings);
+      alert("Escrow account channels successfully updated and synced on the database.");
+    } catch (err: any) {
+      alert("Failed to modify settings on Firestore: " + err.message);
+    }
   };
 
   // Dynamic filter for active lists
@@ -464,11 +520,35 @@ export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin,
     );
   };
 
+  const handleNavigate = (path: string) => {
+    onNavigate(path);
+    setIsMobileMenuOpen(false);
+  };
+
   return (
     <div className="min-h-screen bg-zinc-950 font-sans text-zinc-300 flex flex-col md:flex-row">
       
+      {/* Mobile Top Navigation Header */}
+      <header className="md:hidden bg-zinc-900 border-b border-zinc-805 p-4 px-5 flex items-center justify-between sticky top-0 z-40">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 flex items-center justify-center font-bold text-xs select-none">
+            AV
+          </div>
+          <div>
+            <h3 className="text-xs font-mono font-black text-white tracking-widest uppercase">AetherVault</h3>
+            <p className="text-[9px] text-emerald-400 font-mono">ADMIN PANEL</p>
+          </div>
+        </div>
+        <button
+          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+          className="p-1 px-2 border border-zinc-750 bg-zinc-800 rounded-lg text-white text-xs font-semibold cursor-pointer select-none transition-transform"
+        >
+          {isMobileMenuOpen ? 'CLOSE' : 'MENU'}
+        </button>
+      </header>
+      
       {/* Sidebar Command Navigator */}
-      <aside className="w-full md:w-64 bg-zinc-900 border-b md:border-b-0 md:border-r border-zinc-800 p-5 flex flex-col shrink-0">
+      <aside className={`w-full md:w-64 bg-zinc-900 border-b md:border-b-0 md:border-r border-zinc-800 p-5 flex flex-col shrink-0 transition-all ${isMobileMenuOpen ? 'block' : 'hidden md:flex'}`}>
         
         {/* Admin Meta */}
         <div className="flex items-center gap-3 mb-8 pb-5 border-b border-zinc-800">
@@ -500,7 +580,7 @@ export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin,
             return (
               <button
                 key={navItem.tag}
-                onClick={() => onNavigate(navItem.tag)}
+                onClick={() => handleNavigate(navItem.tag)}
                 className={`w-full p-2.5 rounded-xl text-xs font-sans font-medium flex items-center gap-2.5 transition-all text-left cursor-pointer ${
                   isActive 
                     ? 'bg-indigo-600 text-white font-extrabold shadow-md' 
@@ -517,7 +597,7 @@ export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin,
         {/* Exit Buttons */}
         <div className="pt-5 border-t border-zinc-800 space-y-2 mt-auto">
           <button
-            onClick={() => onNavigate('/')}
+            onClick={() => handleNavigate('/')}
             className="w-full p-2.5 rounded-xl text-[11px] font-sans font-semibold text-zinc-400 hover:text-white flex items-center gap-2 hover:bg-zinc-800 transition-colors cursor-pointer"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
@@ -772,15 +852,15 @@ export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin,
                     />
                   </div>
 
-                  {/* Categories picker - hidden per request */}
-                  <div className="hidden">
-                    <label className="text-[10px] font-mono tracking-widest text-zinc-400 block uppercase">Asset Class Category</label>
+                  {/* Categories picker - now fully visible and dynamic */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-mono tracking-widest text-[#a78bfa] block uppercase font-bold">Asset Class Category</label>
                     <select
                       value={productForm.category}
                       onChange={(e) => setProductForm({...productForm, category: e.target.value})}
-                      className="w-full p-2.5 bg-zinc-950 border border-zinc-800 rounded-xl outline-none focus:border-indigo-500 text-white text-xs"
+                      className="w-full p-2.5 bg-zinc-950 border border-zinc-800 rounded-xl outline-none focus:border-indigo-500 text-white text-xs cursor-pointer"
                     >
-                      {["Web Templates", "UI Kits", "Scripts", "Plugins", "Graphics", "SaaS Tools", "AI Prompts"].map(catName => (
+                      {(categories && categories.length > 0 ? categories.map(c => c.name) : ["Web Templates", "UI Kits", "Scripts", "Plugins", "Graphics", "SaaS Tools", "AI Prompts"]).map(catName => (
                         <option key={catName} value={catName}>{catName}</option>
                       ))}
                     </select>
@@ -827,8 +907,9 @@ export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin,
                   </div>
 
                   {/* Code-key Download Url - hidden per request */}
-                  <div className="hidden">
-                    <label className="text-[10px] font-mono tracking-widest text-amber-400 block uppercase">Custom Download / File Delivery Link (Google Drive, Mega, Dropbox)</label>
+                  {/* Custom Download Input - visible! */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-mono tracking-widest text-[#a78bfa] block uppercase font-bold font-mono">Custom Download / File Delivery Link (Google Drive, Mega, Dropbox)</label>
                     <input
                       type="text"
                       value={productForm.downloadUrl}
@@ -838,13 +919,13 @@ export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin,
                     />
                   </div>
 
-                  {/* CDN provider - hidden per request */}
-                  <div className="hidden">
-                    <label className="text-[10px] font-mono tracking-widest text-zinc-400 block uppercase">Fulfillment Server CDN</label>
+                  {/* CDN provider - visible! */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-mono tracking-widest text-[#a78bfa] block uppercase font-bold font-mono">Fulfillment Storage / Unlock Provider</label>
                     <select
                       value={productForm.provider}
                       onChange={(e) => setProductForm({...productForm, provider: e.target.value as DownloadProvider})}
-                      className="w-full p-2.5 bg-zinc-950 border border-zinc-800 rounded-xl outline-none focus:border-indigo-500 text-white text-xs"
+                      className="w-full p-2.5 bg-zinc-950 border border-zinc-800 rounded-xl outline-none focus:border-indigo-500 text-white text-xs cursor-pointer"
                     >
                       {["Google Drive", "Dropbox", "GitHub", "CDN", "S3 Buckets"].map(provItem => (
                         <option key={provItem} value={provItem}>{provItem}</option>

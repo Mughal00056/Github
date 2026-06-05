@@ -28,13 +28,60 @@ export default function CartDrawer({
   const [promoCodesList, setPromoCodesList] = useState<{ code: string; percent: number; description?: string }[]>([]);
 
   useEffect(() => {
-    import('../firebase').then(f => f.getPromoCodes()).then(list => {
-      if (list && list.length > 0) {
-        setPromoCodesList(list);
+    const loadCoupons = async () => {
+      let unifiedList: { code: string; percent: number; description?: string }[] = [];
+      
+      // 1. Try fetching from the Express coupons endpoint first
+      try {
+        const response = await fetch('/api/coupons');
+        if (response.ok) {
+          const apiCoupons = await response.json();
+          if (apiCoupons && Array.isArray(apiCoupons)) {
+            apiCoupons.forEach(c => {
+              if (c.active !== false) {
+                unifiedList.push({
+                  code: c.code.toUpperCase(),
+                  percent: Number(c.discountValue) || 10,
+                  description: `${c.discountValue}% Off coupon`
+                });
+              }
+            });
+          }
+        }
+      } catch (err) {
+        console.warn('Unable to load Express coupons, falling back:', err);
       }
-    }).catch(err => {
-      console.warn('Unable to get live promos, using local static values:', err);
-    });
+
+      // 2. Fallback to / merge with Firestore getPromoCodes list
+      try {
+        const f = await import('../firebase');
+        const list = await f.getPromoCodes();
+        if (list && list.length > 0) {
+          list.forEach(p => {
+            if (!unifiedList.some(item => item.code.toUpperCase() === p.code.toUpperCase())) {
+              unifiedList.push(p);
+            }
+          });
+        }
+      } catch (err) {
+        console.warn('Unable to get live promos from Firestore:', err);
+      }
+
+      if (unifiedList.length > 0) {
+        setPromoCodesList(unifiedList);
+      } else {
+        // Default static fallback if database holds no records
+        setPromoCodesList([
+          { code: 'AETHER20', percent: 20 },
+          { code: 'WELCOME20', percent: 20 },
+          { code: 'FREEBIE', percent: 100 }
+        ]);
+      }
+    };
+
+    if (isOpen) {
+      loadCoupons();
+    }
   }, [isOpen]);
 
   const handleApplyPromo = (e: React.FormEvent) => {
@@ -49,7 +96,7 @@ export default function CartDrawer({
       { code: 'WELCOME20', percent: 20 },
       { code: 'FREEBIE', percent: 100 }
     ];
-    // Combine both static and live list to ensure AETHER20 and FREEBIE always work
+    // Combine both static and live list to ensure defined codes are supported
     const activePromos = [...defaultPromos];
     if (promoCodesList && promoCodesList.length > 0) {
       promoCodesList.forEach(dynamicPromo => {
@@ -66,7 +113,8 @@ export default function CartDrawer({
       setPromoSuccess(`Promo ${code} applied! ${matched.percent}% discount subtracted.`);
       setPromoError('');
     } else {
-      setPromoError('Unknown promo code. Try AETHER20 or FREEBIE!');
+      const allowedCodes = activePromos.filter(p => !p.code.startsWith('__')).map(p => p.code).slice(0, 4).join(', ');
+      setPromoError(`Unknown promo code. Try ${allowedCodes || 'AETHER20 or FREEBIE'}!`);
       setPromoSuccess('');
     }
   };
@@ -242,7 +290,15 @@ export default function CartDrawer({
                 {promoSuccess && <p className="text-[10px] text-emerald-500 font-semibold">{promoSuccess}</p>}
                 {!appliedPromo && (
                   <p className="text-[10.5px] text-zinc-400">
-                    💡 Tip: Enter <span className="font-mono font-bold text-zinc-505 dark:text-zinc-300">AETHER20</span> (20% off) or <span className="font-mono font-bold text-zinc-505 dark:text-zinc-300">FREEBIE</span> (100% off) for test discount!
+                    {promoCodesList && promoCodesList.filter(p => p.code && !p.code.startsWith('__')).length > 0 ? (
+                      <span>
+                        💡 Valid Promo Codes: {promoCodesList.filter(p => p.code && !p.code.startsWith('__')).map(p => `${p.code} (${p.percent}% off)`).join(', ')}
+                      </span>
+                    ) : (
+                      <span>
+                        💡 Tip: Enter <span className="font-mono font-bold text-zinc-505 dark:text-zinc-300">AETHER20</span> (20% off) or <span className="font-mono font-bold text-zinc-505 dark:text-zinc-300">FREEBIE</span> (100% off) for test discount!
+                      </span>
+                    )}
                   </p>
                 )}
               </form>

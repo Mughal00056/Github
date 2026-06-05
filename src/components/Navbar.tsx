@@ -75,6 +75,25 @@ export default function Navbar({
   onBrandClick,
   onMenuClick
 }: NavbarProps) {
+  const [dynCategories, setDynCategories] = React.useState<string[]>(['All']);
+
+  React.useEffect(() => {
+    fetch('/api/categories')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data && Array.isArray(data) && data.length > 0) {
+          const names = ['All', ...data.map((c: any) => c.name)];
+          setDynCategories(names);
+        } else {
+          setDynCategories(CATEGORIES);
+        }
+      })
+      .catch(err => {
+        console.warn('Unable to get dynamic categories, using default list:', err);
+        setDynCategories(CATEGORIES);
+      });
+  }, [activeCategory]);
+
   return (
     <header className="sticky top-0 z-40 border-b border-zinc-200/80 dark:border-white/10 bg-white/80 dark:bg-[#0a0a0a]/90 backdrop-blur-md transition-colors duration-200">
       <div id="nav-container" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -188,7 +207,7 @@ export default function Navbar({
 
           <div className="py-2.5 sm:py-3.5 overflow-x-auto flex items-center scrollbar-none scroll-smooth touch-pan-x">
             <div className="flex gap-1.5 sm:gap-2.5">
-              {CATEGORIES.map((cat) => {
+              {dynCategories.map((cat) => {
                 const isActive = activeCategory === cat;
                 return (
                   <motion.button
