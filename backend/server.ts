@@ -8,6 +8,11 @@ const PORT = 3000;
 
 app.use(express.json());
 
+// Health Check
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', server: 'AetherVault Backend' });
+});
+
 // API Placeholders & Routing logic
 // ------------------------------------
 let customProductsCache: any[] = [];

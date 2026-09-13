@@ -24,7 +24,8 @@ import {
   Menu,
   ExternalLink,
   User,
-  LogOut
+  LogOut,
+  ShieldCheck
 } from 'lucide-react';
 
 import { Product, CartItem, UserProfile, DownloadProvider, Review } from './types';
@@ -1576,12 +1577,18 @@ export default function App() {
             <p className="text-[10px] mt-1 text-zinc-450 dark:text-slate-500">© 2026 Sandbox Asset Vault. All rights reserved.</p>
           </div>
 
-          <div className="flex gap-4.5 text-[10px] font-semibold text-zinc-500">
+          <div className="flex flex-wrap items-center justify-center gap-3.5 sm:gap-4.5 text-[10px] font-semibold text-zinc-500">
             <span>PCI-DSS Secured Gateway</span>
             <span>•</span>
             <span>External Link Security Policy</span>
             <span>•</span>
-            <span>No-Blob Zero Uploads</span>
+            <button
+              onClick={() => handleAdminOpen(true)}
+              className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 hover:underline cursor-pointer flex items-center gap-1 font-bold"
+            >
+              <ShieldCheck className="w-3.5 h-3.5" />
+              <span>Admin Dashboard</span>
+            </button>
           </div>
         </div>
       </footer>
@@ -1963,6 +1970,21 @@ export default function App() {
                             My Saved Library
                           </button>
                         </div>
+                        <button
+                          onClick={() => {
+                            setIsMenuOpen(false);
+                            handleAdminOpen(true);
+                          }}
+                          className="w-full mt-2 p-3 rounded-xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/50 border border-indigo-200 dark:border-indigo-800/60 text-left text-xs font-bold text-indigo-700 dark:text-indigo-300 cursor-pointer shadow-xs transition-colors flex items-center justify-between"
+                        >
+                          <span className="flex items-center gap-2">
+                            <ShieldCheck className="w-4 h-4 text-indigo-500" />
+                            <span>Admin Management Panel</span>
+                          </span>
+                          <span className="text-[10px] font-mono uppercase bg-indigo-200/60 dark:bg-indigo-900/60 text-indigo-800 dark:text-indigo-200 px-2 py-0.5 rounded font-bold">
+                            Open
+                          </span>
+                        </button>
                       </div>
                     </div>
                   )}

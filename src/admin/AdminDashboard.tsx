@@ -21,6 +21,7 @@ interface AdminDashboardProps {
 }
 
 export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin, productsRef, onProductsUpdated }: AdminDashboardProps) {
+  const activePath = (!currentPath || currentPath === '/admin' || currentPath === '/admin/') ? '/admin/dashboard' : currentPath;
   const adminEmail = auth.currentUser?.email || 'mrflop786@gmail.com';
   // Mobile drawer panel toggle state
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -133,23 +134,52 @@ export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin,
           const prodSnap = await getDocs(prodCol);
           if (prodSnap && !prodSnap.empty) {
             prodSnap.forEach(d => liveProducts.push({ id: d.id, ...d.data() } as Product));
-          } else {
-            liveProducts = productsRef.length > 0 ? productsRef : INITIAL_PRODUCTS;
-            // Seed to firestore dynamically with individual-item error protection
-            for (const p of liveProducts) {
-              try {
-                await setDoc(doc(db, 'products', p.id), p);
-              } catch (seedErr) {
-                console.warn(`Could not seed product ${p.id} to cloud Firestore:`, seedErr);
-              }
-            }
           }
         } catch (prodErr) {
-          console.warn("Could not fetch products from Firestore, falling back to local list:", prodErr);
-          liveProducts = productsRef.length > 0 ? productsRef : INITIAL_PRODUCTS;
+          console.warn("Could not fetch products from Firestore, attempting fallback sources:", prodErr);
         }
+
+        // If Firestore had 0 items, check backend API
+        if (liveProducts.length === 0) {
+          try {
+            const apiRes = await fetch('/api/products');
+            if (apiRes.ok) {
+              const apiProds = await apiRes.json();
+              if (Array.isArray(apiProds) && apiProds.length > 0) {
+                liveProducts = apiProds;
+              }
+            }
+          } catch (e) {}
+        }
+
+        // If still 0, check localStorage
+        if (liveProducts.length === 0) {
+          const cached = localStorage.getItem('cached_products') || localStorage.getItem('aether-products');
+          if (cached) {
+            try {
+              const parsed = JSON.parse(cached);
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                liveProducts = parsed;
+              }
+            } catch (e) {}
+          }
+        }
+
+        // Final fallback: productsRef or INITIAL_PRODUCTS
+        if (liveProducts.length === 0) {
+          liveProducts = productsRef.length > 0 ? productsRef : INITIAL_PRODUCTS;
+          for (const p of liveProducts) {
+            try {
+              await setDoc(doc(db, 'products', p.id), p);
+            } catch (seedErr) {
+              console.warn(`Could not seed product ${p.id} to cloud Firestore:`, seedErr);
+            }
+          }
+        }
+
         setProducts(liveProducts);
         localStorage.setItem('cached_products', JSON.stringify(liveProducts));
+        localStorage.setItem('aether-products', JSON.stringify(liveProducts));
         onProductsUpdated(liveProducts);
 
         // Fetch other modules from custom Express API endpoints or mock fallbacks
@@ -230,15 +260,15 @@ export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin,
     };
 
     fetchAllData();
-  }, [currentPath]);
+  }, [activePath]);
 
-    // Handle Product Add/Edit submission
-    const handleSaveProduct = async (e: React.FormEvent) => {
-      e.preventDefault();
-      if (!productForm.title || !productForm.previewImage) {
-        alert("Please fill in all core product information metrics.");
-        return;
-      }
+  // Handle Product Add/Edit submission
+  const handleSaveProduct = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!productForm.title || !productForm.previewImage) {
+      alert("Please fill in all core product information metrics.");
+      return;
+    }
 
     const targetId = editingProductId || `prod-${Math.floor(100 + Math.random() * 900)}`;
     const originalPrice = Number(productForm.price);
@@ -281,8 +311,15 @@ export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin,
       console.warn("Firestore sync rejected (expected if security rules are currently deploying):", err);
       isCloudSynced = false;
     }
+
+    // 2. Sync to backend API cache
+    fetch('/api/products', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newProduct)
+    }).catch(err => console.warn('Backend product save notice:', err));
       
-    // Update local state and propagate to parent App (user panel)
+    // 3. Update local state and propagate to parent App (user panel)
     const updatedList = editingProductId 
       ? products.map(p => p.id === targetId ? newProduct : p)
       : [newProduct, ...products];
@@ -296,7 +333,7 @@ export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin,
     if (isCloudSynced) {
       alert(`Product "${newProduct.title}" has been successfully logged on the cloud catalog.`);
     } else {
-      alert(`Product "${newProduct.title}" saved successfully to local state & session storage (permissions bypass active for preview).`);
+      alert(`Product "${newProduct.title}" saved successfully to local state & session storage.`);
     }
     
     // Navigate back
@@ -305,8 +342,8 @@ export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin,
 
   // Populate Add/Edit flow
   useEffect(() => {
-    if (currentPath.startsWith('/admin/products/edit/')) {
-      const id = currentPath.split('/').pop();
+    if (activePath.startsWith('/admin/products/edit/')) {
+      const id = activePath.split('/').pop();
       const p = products.find(prod => prod.id === id);
       if (p) {
         setEditingProductId(p.id);
@@ -332,7 +369,7 @@ export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin,
           deliveryTime: p.deliveryTime || '5 Minutes - 2 Hours'
         });
       }
-    } else if (currentPath === '/admin/products/add') {
+    } else if (activePath === '/admin/products/add') {
       setEditingProductId(null);
       setProductForm({
         title: '',
@@ -355,7 +392,7 @@ export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin,
         deliveryTime: '5 Minutes - 2 Hours'
       });
     }
-  }, [currentPath, products]);
+  }, [activePath, products]);
 
   const handleDeleteProduct = async (id: string, title: string) => {
     if (!window.confirm(`Are you absolutely sure you want to permanently delete "${title}" from the cloud repository?`)) return;
@@ -682,13 +719,23 @@ export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin,
     try {
       localStorage.setItem('admin_escrow_settings', JSON.stringify(settings));
       broadcastAdminChange('SETTINGS_UPDATED', settings);
+      fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settings)
+      }).catch(err => console.warn("Backend settings sync notice:", err));
       await updatePaymentDetails(settings);
-      alert("Escrow account channels successfully updated and synced on the database.");
+      alert("Escrow account channels successfully updated and synced across all panels.");
     } catch (err: any) {
-      console.warn("Firestore settings update failed, saved locally:", err);
+      console.warn("Firestore settings update failed, saved locally and on server:", err);
       // Fallback: update local storage so CheckoutModal can read it instantly!
       localStorage.setItem('admin_escrow_settings', JSON.stringify(settings));
       broadcastAdminChange('SETTINGS_UPDATED', settings);
+      fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settings)
+      }).catch(() => {});
       alert("Escrow account details updated and saved locally! (Bypass active to override Firestore permission errors: " + err.message + ")");
     }
   };
@@ -759,7 +806,7 @@ export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin,
             { tag: '/admin/analytics', label: 'Advanced Analytics', icon: TrendingUp },
             { tag: '/admin/settings', label: 'Escrow Settings', icon: ShieldCheck }
           ].map(navItem => {
-            const isActive = currentPath === navItem.tag || (navItem.tag === '/admin/products' && currentPath.startsWith('/admin/products/'));
+            const isActive = activePath === navItem.tag || (navItem.tag === '/admin/products' && activePath.startsWith('/admin/products/'));
             return (
               <button
                 key={navItem.tag}
@@ -804,49 +851,60 @@ export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin,
         <header className="flex flex-col sm:flex-row sm:items-center justify-between pb-6 border-b border-zinc-800 gap-4 mb-6">
           <div>
             <h1 className="text-xl font-sans font-black text-white uppercase tracking-tight">
-              {currentPath === '/admin/dashboard' && "Control Cockpit"}
-              {currentPath === '/admin/products' && "Manage Products catalog"}
-              {currentPath === '/admin/products/add' && "Publish Source Asset"}
-              {currentPath.includes('/admin/products/edit/') && "Revise Digital Schema"}
-              {currentPath === '/admin/categories' && "Category Architecture"}
-              {currentPath === '/admin/orders' && "Orders Fulfillment Ledger"}
-              {currentPath === '/admin/users' && "Accounts & Authorization Management"}
-              {currentPath === '/admin/coupons' && "Direct License Coupon Engine"}
-              {currentPath === '/admin/payments' && "Verified Transactions Ledger"}
-              {currentPath === '/admin/analytics' && "Macro Profit Models"}
-              {currentPath === '/admin/settings' && "Escrow & Account Configurations"}
+              {activePath === '/admin/dashboard' && "Control Cockpit"}
+              {activePath === '/admin/products' && "Manage Products Catalog"}
+              {activePath === '/admin/products/add' && "Publish Source Asset"}
+              {activePath.includes('/admin/products/edit/') && "Revise Digital Schema"}
+              {activePath === '/admin/categories' && "Category Architecture"}
+              {activePath === '/admin/orders' && "Orders Fulfillment Ledger"}
+              {activePath === '/admin/users' && "Accounts & Authorization Management"}
+              {activePath === '/admin/coupons' && "Direct License Coupon Engine"}
+              {activePath === '/admin/payments' && "Verified Transactions Ledger"}
+              {activePath === '/admin/analytics' && "Macro Profit Models"}
+              {activePath === '/admin/settings' && "Escrow & Account Configurations"}
             </h1>
             <p className="text-xs text-zinc-400 mt-0.5">
               System credentials synchronized with {adminEmail}
             </p>
           </div>
 
-          {/* Search ledger */}
-          {!currentPath.startsWith('/admin/products/') && currentPath !== '/admin/analytics' && currentPath !== '/admin/settings' && (
-            <div className="relative max-w-xs w-full">
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search ledger items..."
-                className="w-full text-xs p-2.5 pl-9 bg-zinc-900 border border-zinc-800 rounded-xl outline-none focus:border-indigo-500 text-white"
-              />
-              <Search className="absolute left-3 top-3 h-3.5 w-3.5 text-zinc-500" />
-            </div>
-          )}
+          {/* Search ledger & Storefront Button */}
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => handleNavigate('/')}
+              className="hidden sm:flex items-center gap-1.5 px-3 py-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white rounded-xl text-xs font-semibold border border-zinc-800 transition-colors cursor-pointer shrink-0"
+              title="Return to User Storefront"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Storefront</span>
+            </button>
+
+            {!activePath.startsWith('/admin/products/') && activePath !== '/admin/analytics' && activePath !== '/admin/settings' && (
+              <div className="relative max-w-xs w-full">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search ledger items..."
+                  className="w-full text-xs p-2.5 pl-9 bg-zinc-900 border border-zinc-800 rounded-xl outline-none focus:border-indigo-500 text-white"
+                />
+                <Search className="absolute left-3 top-3 h-3.5 w-3.5 text-zinc-500" />
+              </div>
+            )}
+          </div>
         </header>
 
         {/* Dashboard Views Switchboard */}
         <AnimatePresence mode="wait">
           <motion.div
-            key={currentPath}
+            key={activePath}
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.2 }}
           >
             {/* 1. ROUTE: /admin/dashboard */}
-            {currentPath === '/admin/dashboard' && (
+            {activePath === '/admin/dashboard' && (
               <div className="space-y-6">
                 {/* Stats Bento Grid Panel */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -934,7 +992,7 @@ export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin,
             )}
 
             {/* 2. ROUTE: /admin/products */}
-            {currentPath === '/admin/products' && (
+            {activePath === '/admin/products' && (
               <div className="space-y-5">
                 <div className="flex justify-between items-center bg-zinc-900 border border-zinc-800 p-4 rounded-xl">
                   <span className="text-xs text-zinc-400 font-mono">Total catalog modules: <strong className="text-white">{products.length}</strong></span>
@@ -1015,7 +1073,7 @@ export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin,
             )}
 
             {/* 3. ROUTES: /admin/products/add & /admin/products/edit/:id */}
-            {(currentPath === '/admin/products/add' || currentPath.startsWith('/admin/products/edit/')) && (
+            {(activePath === '/admin/products/add' || activePath.startsWith('/admin/products/edit/')) && (
               <form onSubmit={handleSaveProduct} className="bg-zinc-900 border border-zinc-800 p-5 rounded-2xl max-w-3xl space-y-5">
                 <h3 className="text-xs sm:text-sm font-sans font-black text-white tracking-wider uppercase border-b border-zinc-800 pb-3 block">
                   {editingProductId ? "REVISE PRODUCT ARTIFACT" : "PUBLISH NEW SOURCE ASSET"}
@@ -1232,7 +1290,7 @@ export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin,
             )}
 
             {/* 4. ROUTE: /admin/categories */}
-            {currentPath === '/admin/categories' && (
+            {activePath === '/admin/categories' && (
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Add Category Form */}
                 <div className="bg-zinc-900 border border-zinc-800 p-5 rounded-2xl h-fit">
@@ -1299,7 +1357,7 @@ export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin,
             )}
 
             {/* 5. ROUTE: /admin/orders */}
-            {currentPath === '/admin/orders' && (
+            {activePath === '/admin/orders' && (
               <div className="space-y-6">
                 <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
                   <div className="overflow-x-auto">
@@ -1446,7 +1504,7 @@ export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin,
             )}
 
             {/* 6. ROUTE: /admin/users */}
-            {currentPath === '/admin/users' && (
+            {activePath === '/admin/users' && (
               <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden animate-fade-in">
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs font-sans min-w-[700px]">
@@ -1522,7 +1580,7 @@ export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin,
             )}
 
             {/* 7. ROUTE: /admin/coupons */}
-            {currentPath === '/admin/coupons' && (
+            {activePath === '/admin/coupons' && (
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 
                 {/* Coupon creation form */}
@@ -1626,7 +1684,7 @@ export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin,
             )}
 
             {/* 8. ROUTE: /admin/payments */}
-            {currentPath === '/admin/payments' && (
+            {activePath === '/admin/payments' && (
               <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden animate-fade-in">
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs font-sans min-w-[750px]">
@@ -1677,7 +1735,7 @@ export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin,
             )}
 
             {/* 9. ROUTE: /admin/analytics */}
-            {currentPath === '/admin/analytics' && (
+            {activePath === '/admin/analytics' && (
               <div className="space-y-6">
                 
                 {/* Interactive SVG Business Charts */}
@@ -1763,7 +1821,7 @@ export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin,
             )}
 
             {/* 10. ROUTE: /admin/settings */}
-            {currentPath === '/admin/settings' && (
+            {activePath === '/admin/settings' && (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 max-w-5xl">
                 
                 {/* Left Card: Escrow Gateways */}
