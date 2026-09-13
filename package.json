@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "tsx backend/server.ts",
+    "dev:user": "vite serve user --port 3000 --host 0.0.0.0",
+    "dev:admin": "vite serve admin --port 3000 --host 0.0.0.0",
     "build": "vite build && esbuild backend/server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
     "start": "node dist/server.cjs",
     "lint": "tsc --noEmit"
