@@ -24,6 +24,7 @@ import {
   getDocFromServer
 } from 'firebase/firestore';
 
+// User's provided Firebase Configuration
 const firebaseConfig = {
   apiKey: "AIzaSyD_GZGMNXb-Zl6psFu5NhT-7u0fU9Mid5M",
   authDomain: "aethervault-b207c.firebaseapp.com",
@@ -39,6 +40,7 @@ export const db = getFirestore(app);
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 
+// Firestore error logging & reporting as strictly mandated by the skill
 export enum OperationType {
   CREATE = 'create',
   UPDATE = 'update',
@@ -86,6 +88,7 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   throw new Error(JSON.stringify(errInfo));
 }
 
+// Connection test helper following guideline
 export async function testConnection() {
   try {
     await getDocFromServer(doc(db, 'test', 'connection'));
@@ -104,6 +107,7 @@ export async function logoutUser() {
   }
 }
 
+// High-level safe synchronization services
 export async function syncUserProfile(email: string, name: string, avatar: string, wishlistIds: string[]) {
   const userId = email.replace(/[^a-zA-Z0-9_\-]/g, '_');
   const path = `users/${userId}`;
@@ -154,6 +158,24 @@ export async function getUserPurchases(email: string) {
     return purchases;
   } catch (error) {
     handleFirestoreError(error, OperationType.GET, path);
+  }
+}
+
+export async function updatePurchaseStatus(email: string, orderId: string, status: 'pending' | 'completed' | 'not-ready') {
+  const userId = email.replace(/[^a-zA-Z0-9_\-]/g, '_');
+  const path = `users/${userId}/purchases`;
+  try {
+    const collRef = collection(db, 'users', userId, 'purchases');
+    const snap = await getDocs(collRef);
+    for (const d of snap.docs) {
+      const data = d.data();
+      if (data.orderId === orderId) {
+        const purchaseRef = doc(db, 'users', userId, 'purchases', d.id);
+        await updateDoc(purchaseRef, { status });
+      }
+    }
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, path);
   }
 }
 
@@ -209,3 +231,53 @@ export async function updatePromoCodes(codes: { code: string; percent: number; d
     handleFirestoreError(error, OperationType.WRITE, path);
   }
 }
+
+export async function getFirebaseAnnouncements() {
+  const path = 'settings/announcements';
+  try {
+    const docRef = doc(db, 'settings', 'announcements');
+    const snap = await getDoc(docRef);
+    if (snap.exists() && snap.data()?.list) {
+      return snap.data().list as string[];
+    }
+  } catch (error) {
+    console.warn('Silent fallback for announcements get:', error);
+  }
+  return null;
+}
+
+export async function updateFirebaseAnnouncements(list: string[]) {
+  const path = 'settings/announcements';
+  try {
+    const docRef = doc(db, 'settings', 'announcements');
+    await setDoc(docRef, { list }, { merge: true });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
+export async function getFirebaseCategories() {
+  const path = 'settings/categories';
+  try {
+    const docRef = doc(db, 'settings', 'categories');
+    const snap = await getDoc(docRef);
+    if (snap.exists() && snap.data()?.list) {
+      return snap.data().list as any[];
+    }
+  } catch (error) {
+    console.warn('Silent fallback for categories get:', error);
+  }
+  return null;
+}
+
+export async function updateFirebaseCategories(list: any[]) {
+  const path = 'settings/categories';
+  try {
+    const docRef = doc(db, 'settings', 'categories');
+    await setDoc(docRef, { list }, { merge: true });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
+

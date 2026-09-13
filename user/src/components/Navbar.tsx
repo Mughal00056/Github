@@ -120,15 +120,6 @@ export default function Navbar({
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3.5">
-            {user.isAdmin && (
-              <button
-                onClick={() => setIsAdminPanelOpen(true)}
-                className="p-2.5 text-zinc-500 hover:text-indigo-600 dark:text-slate-450 dark:hover:text-indigo-400 rounded-lg bg-zinc-100/50 dark:bg-white/5 hover:bg-zinc-100 dark:hover:bg-white/10 border border-transparent dark:border-white/10 transition-colors cursor-pointer"
-                title="Admin Panel"
-              >
-                <Terminal className="w-5 h-5" />
-              </button>
-            )}
             <button
               id="wishlist-trigger-btn"
               onClick={() => {

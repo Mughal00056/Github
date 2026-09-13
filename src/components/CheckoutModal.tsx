@@ -429,20 +429,6 @@ export default function CheckoutModal({
               <span>🔒 PCI-DSS Compliant Encryption Standard</span>
             </div>
 
-            <div className="pt-2.5 border-t border-zinc-150 dark:border-zinc-900/60 flex flex-col gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  onClose();
-                  window.history.pushState({}, '', '/admin/dashboard');
-                  window.location.reload();
-                }}
-                className="w-full py-2.5 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-indigo-600 dark:text-indigo-400 font-sans font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5 border border-indigo-500/10 cursor-pointer"
-              >
-                <span>Go to Admin Dashboard</span>
-              </button>
-            </div>
-
           </form>
         ) : step === 'pending' ? (
           /* PENDING STATE PANEL */
@@ -506,17 +492,6 @@ export default function CheckoutModal({
                 className="w-full py-2.5 bg-zinc-950 hover:bg-zinc-850 dark:bg-white dark:text-zinc-950 font-sans font-bold text-xs sm:text-sm rounded-xl cursor-pointer transition-all"
               >
                 Go to Dashboard
-              </button>
-
-              <button
-                onClick={() => {
-                  onClose();
-                  window.history.pushState({}, '', '/admin/dashboard');
-                  window.location.reload();
-                }}
-                className="w-full py-2.5 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-indigo-600 dark:text-indigo-400 font-sans font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5 border border-indigo-500/10 cursor-pointer"
-              >
-                <span>Go to Admin Dashboard</span>
               </button>
 
               <button

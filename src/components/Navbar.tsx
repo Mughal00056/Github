@@ -183,17 +183,6 @@ export default function Navbar({
 
           {/* Controls */}
           <div className="flex items-center gap-2 sm:gap-3.5">
-
-            {/* Admin Panel Trigger */}
-            {user.isAdmin && (
-              <button
-                onClick={() => setIsAdminPanelOpen(true)}
-                className="hidden sm:inline-flex px-3 py-1.5 text-xs font-sans font-bold text-indigo-600 hover:text-white dark:text-indigo-400 bg-indigo-50 hover:bg-indigo-600 dark:bg-indigo-950/40 dark:hover:bg-indigo-600 rounded-xl border border-indigo-150/40 dark:border-indigo-800/40 transition-all cursor-pointer whitespace-nowrap active:scale-95"
-                title="Switch to Admin Dashboard"
-              >
-                Admin Panel
-              </button>
-            )}
             <button
               id="wishlist-trigger-btn"
               onClick={() => {

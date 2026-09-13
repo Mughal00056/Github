@@ -28,10 +28,14 @@ export interface Product {
   fileFormat: string;
   version: string;
   reviews: Review[];
+  detailImageUrl?: string;
+  detailText?: string;
+  deliveryTime?: string;
 }
 
 export interface CartItem {
   product: Product;
+  quantity?: number;
 }
 
 export interface Purchase {
@@ -44,6 +48,9 @@ export interface Purchase {
   provider: DownloadProvider;
   unlockToken: string;
   ratingSubmitted?: boolean;
+  status?: 'pending' | 'completed' | 'not-ready';
+  orderId?: string;
+  deliveryTime?: string;
 }
 
 export interface UserProfile {

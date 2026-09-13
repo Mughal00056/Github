@@ -1,5 +1,6 @@
 import express from 'express';
 import path from 'path';
+import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
 
 const app = express();
@@ -270,15 +271,34 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), 'dist');
+    app.use('/admin', express.static(path.join(distPath, 'admin')));
+    app.use('/user', express.static(path.join(distPath, 'user')));
     app.use(express.static(distPath));
     
     // Route /admin requests to the compiled admin index
     app.get('/admin*', (req, res) => {
-      res.sendFile(path.join(distPath, 'admin', 'index.html'));
+      const adminIndex = path.join(distPath, 'admin', 'index.html');
+      if (fs.existsSync(adminIndex)) {
+        return res.sendFile(adminIndex);
+      }
+      res.sendFile(path.join(distPath, 'index.html'));
+    });
+
+    // Route /user requests to the compiled user index
+    app.get('/user*', (req, res) => {
+      const userIndex = path.join(distPath, 'user', 'index.html');
+      if (fs.existsSync(userIndex)) {
+        return res.sendFile(userIndex);
+      }
+      res.sendFile(path.join(distPath, 'index.html'));
     });
     
     // Default route for general storefront queries
     app.get('*', (req, res) => {
+      const userIndex = path.join(distPath, 'user', 'index.html');
+      if (fs.existsSync(userIndex)) {
+        return res.sendFile(userIndex);
+      }
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
