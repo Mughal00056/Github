@@ -13,6 +13,7 @@ import {
   ShieldAlert
 } from 'lucide-react';
 import { Product, CartItem, DownloadProvider } from '../types';
+import { listenToAdminChanges } from '../sync';
 
 interface CheckoutModalProps {
   isOpen: boolean;
@@ -21,7 +22,11 @@ interface CheckoutModalProps {
   subtotal: number;
   discountAmount: number;
   discountCode: string;
-  onPurchaseSuccess: (email: string, itemsPaid: { id: string; price: number; title: string; downloadUrl: string; provider: DownloadProvider }[]) => void;
+  onPurchaseSuccess: (
+    email: string, 
+    itemsPaid: { id: string; price: number; title: string; downloadUrl: string; provider: DownloadProvider }[],
+    paymentMeta: { method: string; payNumber: string; transactionId: string }
+  ) => void;
   userEmail: string;
 }
 
@@ -52,13 +57,54 @@ export default function CheckoutModal({
   const [paymentDetails, setPaymentDetails] = useState<{ easypaisaNumber: string; jazzcashNumber: string; cryptoAddress: string }>({ easypaisaNumber: '', jazzcashNumber: '', cryptoAddress: '' });
 
   React.useEffect(() => {
-    import('../firebase').then(f => f.getPaymentDetails()).then(setPaymentDetails);
+    // 1. Instant check from local cache
+    const saved = localStorage.getItem('admin_escrow_settings');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed && (parsed.easypaisaNumber || parsed.jazzcashNumber || parsed.cryptoAddress)) {
+          setPaymentDetails(parsed);
+        }
+      } catch (e) {}
+    }
+
+    // 2. Fetch from backend API
+    fetch('/api/settings')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data && (data.easypaisaNumber || data.jazzcashNumber || data.cryptoAddress)) {
+          setPaymentDetails(data);
+          localStorage.setItem('admin_escrow_settings', JSON.stringify(data));
+        }
+      })
+      .catch(() => {});
+
+    // 3. Query Firebase database
+    import('../firebase').then(f => f.getPaymentDetails()).then(res => {
+      if (res && (res.easypaisaNumber || res.jazzcashNumber || res.cryptoAddress)) {
+        setPaymentDetails(res);
+      }
+    });
+
+    // 4. Subscribe to live Admin changes (inter-tab broadcast & window events)
+    const unsub = listenToAdminChanges({
+      onSettings: (liveSettings) => {
+        if (liveSettings) {
+          setPaymentDetails(liveSettings);
+        }
+      }
+    });
+
+    return () => {
+      unsub();
+    };
   }, []);
 
   if (!isOpen) return null;
 
   const actualAmountDue = Math.max(0, subtotal - discountAmount);
 
+  // Format credit card string nicely as user types (xxxx xxxx xxxx xxxx)
   const handleCardInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     let input = e.target.value.replace(/\D/g, '');
     if (input.length > 16) input = input.slice(0, 16);
@@ -69,6 +115,7 @@ export default function CheckoutModal({
     setCardNumber(parts.join(' '));
   };
 
+  // Format expiry nicely (MM/YY)
   const handleExpiryInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     let input = e.target.value.replace(/\D/g, '');
     if (input.length > 4) input = input.slice(0, 4);
@@ -84,6 +131,7 @@ export default function CheckoutModal({
     setCvc(input);
   };
 
+  // Trigger copy
   const handleCopy = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
     setCopiedId(id);
@@ -129,17 +177,20 @@ export default function CheckoutModal({
       }
     }
 
+    // Launch loading spinners
     setIsProcessing(true);
     
     setTimeout(() => {
       setIsProcessing(false);
       
+      // Generate secure local unlocked keys list
       const keys = cart.map(item => ({
         productId: item.product.id,
         token: `LIC-CODE-${item.product.provider.toUpperCase().split(' ')[0]}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`
       }));
       setUnlockedKeys(keys);
 
+      // Perform real purchase logging
       const itemsPaid = cart.map(item => ({
         id: item.product.id,
         price: item.product.price,
@@ -148,19 +199,24 @@ export default function CheckoutModal({
         provider: item.product.provider
       }));
       
-      onPurchaseSuccess(email, itemsPaid);
-      setStep('success');
+      onPurchaseSuccess(email, itemsPaid, {
+        method: paymentMethod === 'card' ? 'Credit Card' : paymentMethod === 'easypaisa' ? 'EasyPaisa' : paymentMethod === 'jazzcash' ? 'JazzCash' : 'Cryptocurrency',
+        payNumber: paymentMethod === 'card' ? cardNumber.replace(/\d(?=\d{4})/g, "*") : clientWalletId,
+        transactionId: paymentMethod === 'card' ? `TX-CARD-${Math.random().toString(36).substring(2, 8).toUpperCase()}` : transactionId
+      });
+      setStep('pending');
     }, 2205);
   };
 
   return (
-    <div id="checkout-modal-panel" className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4 bg-zinc-955/80 backdrop-blur-md">
+    <div id="checkout-modal-panel" className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4 bg-zinc-950/80 backdrop-blur-md">
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.95 }}
         className="bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-850 rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
       >
+        {/* Header bar */}
         <div className="px-6 py-5 border-b border-zinc-150 dark:border-zinc-900 bg-zinc-50 dark:bg-zinc-900/10 flex justify-between items-center shrink-0">
           <div className="flex items-center gap-2">
             <Lock className="w-4 h-4 text-emerald-500" />
@@ -171,21 +227,31 @@ export default function CheckoutModal({
           <button
             id="checkout-close-top-btn"
             onClick={onClose}
-            className="text-zinc-400 hover:text-zinc-650 dark:hover:text-zinc-100 p-1 rounded-lg transition-colors cursor-pointer"
+            className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-100 p-1 rounded-lg transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
+        {/* Content switch */}
         {step === 'checkout' ? (
           <form onSubmit={handlePaySubmit} className="p-6 space-y-4 overflow-y-auto flex-1 min-h-0">
+            
+            {/* Cart summary preview */}
             <div className="p-4 rounded-xl border border-dashed border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/30 text-xs">
               <span className="font-mono text-zinc-400 uppercase tracking-widest text-[10px]">Purchase elements ({cart.length})</span>
               <div className="space-y-1 mt-1 font-sans">
                 {cart.map(item => (
                   <div key={item.product.id} className="flex justify-between font-medium">
-                    <span className="truncate text-zinc-700 dark:text-zinc-300 max-w-[250px]">{item.product.title}</span>
-                    <span className="font-mono font-bold text-zinc-900 dark:text-zinc-150">${item.product.price}</span>
+                    <span className="truncate text-zinc-700 dark:text-zinc-300 max-w-[250px] flex items-center gap-1.5">
+                      <span>{item.product.title}</span>
+                      {(item.quantity || 1) > 1 && (
+                        <span className="text-[10px] font-mono font-bold bg-indigo-50 dark:bg-indigo-950/60 px-1.5 py-0.5 rounded text-indigo-600 dark:text-indigo-400 border border-indigo-150/20">
+                          x{item.quantity}
+                        </span>
+                      )}
+                    </span>
+                    <span className="font-mono font-bold text-zinc-900 dark:text-zinc-150">${item.product.price * (item.quantity || 1)}</span>
                   </div>
                 ))}
               </div>
@@ -195,16 +261,18 @@ export default function CheckoutModal({
               </div>
             </div>
 
+            {/* Form controls */}
             <div className="space-y-3">
+              {/* Payment method selector */}
               <div>
                 <label className="block text-[10px] font-mono text-zinc-405 dark:text-zinc-400 uppercase tracking-wide mb-1">Payment Method</label>
                 <select 
                   value={paymentMethod}
                   onChange={(e) => {
                     setPaymentMethod(e.target.value as any);
-                    setCardNumber('');
+                    setCardNumber(''); // Clear numeric inputs
                   }}
-                  className="w-full text-xs p-3 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-805 rounded-xl outline-none focus:border-indigo-505 text-zinc-900 dark:text-white transition-colors"
+                  className="w-full text-xs p-3 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-805 rounded-xl outline-none focus:border-indigo-500 text-zinc-900 dark:text-white transition-colors"
                 >
                   <option value="card">Credit/Debit Card (USD)</option>
                   <option value="easypaisa">Easypaisa (PKR)</option>
@@ -213,6 +281,7 @@ export default function CheckoutModal({
                 </select>
               </div>
 
+              {/* Product email */}
               <div>
                 <label className="block text-[10px] font-mono text-zinc-405 dark:text-zinc-400 uppercase tracking-wide mb-1">Receipt & Delivery Email</label>
                 <input
@@ -222,12 +291,13 @@ export default function CheckoutModal({
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="name@company.com"
-                  className="w-full text-xs p-3 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-805 rounded-xl outline-none focus:border-indigo-505 text-zinc-900 dark:text-white transition-colors"
+                  className="w-full text-xs p-3 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-805 rounded-xl outline-none focus:border-indigo-500 text-zinc-900 dark:text-white transition-colors"
                 />
               </div>
 
               {actualAmountDue > 0 && paymentMethod === 'card' ? (
                 <>
+                  {/* Card Name */}
                   <div>
                     <label className="block text-[10px] font-mono text-zinc-405 dark:text-zinc-400 uppercase tracking-wide mb-1">Cardholder Name</label>
                     <input
@@ -236,10 +306,11 @@ export default function CheckoutModal({
                       value={fullName}
                       onChange={(e) => setFullName(e.target.value)}
                       placeholder="Alexander Hamilton"
-                      className="w-full text-xs p-3 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-850 rounded-xl outline-none focus:border-indigo-505 text-zinc-900 dark:text-white transition-colors uppercase"
+                      className="w-full text-xs p-3 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-805 rounded-xl outline-none focus:border-indigo-500 text-zinc-900 dark:text-white transition-colors uppercase"
                     />
                   </div>
 
+                  {/* Card digits */}
                   <div>
                     <label className="block text-[10px] font-mono text-zinc-405 dark:text-zinc-400 uppercase tracking-wide mb-1">Card Number</label>
                     <div className="relative">
@@ -249,7 +320,7 @@ export default function CheckoutModal({
                         value={cardNumber}
                         onChange={handleCardInput}
                         placeholder="4111 2222 3333 4444"
-                        className="w-full pl-9 pr-3 text-xs p-3 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-855 rounded-xl outline-none focus:border-indigo-505 text-zinc-900 dark:text-white transition-colors"
+                        className="w-full pl-9 pr-3 text-xs p-3 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-805 rounded-xl outline-none focus:border-indigo-500 text-zinc-900 dark:text-white transition-colors"
                       />
                       <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-zinc-400">
                         <CreditCard className="w-4 h-4" />
@@ -257,6 +328,7 @@ export default function CheckoutModal({
                     </div>
                   </div>
 
+                  {/* Grid CVV or Expiry */}
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-[10px] font-mono text-zinc-405 dark:text-zinc-400 uppercase tracking-wide mb-1">Expiration (MM/YY)</label>
@@ -266,7 +338,7 @@ export default function CheckoutModal({
                         value={expiry}
                         onChange={handleExpiryInput}
                         placeholder="12/28"
-                        className="w-full text-center text-xs p-3 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-855 rounded-xl outline-none focus:border-indigo-505 text-zinc-900 dark:text-white transition-colors"
+                        className="w-full text-center text-xs p-3 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-805 rounded-xl outline-none focus:border-indigo-500 text-zinc-900 dark:text-white transition-colors"
                       />
                     </div>
                     <div>
@@ -277,7 +349,7 @@ export default function CheckoutModal({
                         value={cvc}
                         onChange={handleCvcInput}
                         placeholder="•••"
-                        className="w-full text-center text-xs p-3 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-855 rounded-xl outline-none focus:border-indigo-505 text-zinc-900 dark:text-white transition-colors"
+                        className="w-full text-center text-xs p-3 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-805 rounded-xl outline-none focus:border-indigo-500 text-zinc-900 dark:text-white transition-colors"
                       />
                     </div>
                   </div>
@@ -309,10 +381,11 @@ export default function CheckoutModal({
                       </button>
                     </div>
                     <p className="text-[10px] text-zinc-400">
-                      Please copy the ID above, complete your transfer of <strong className="text-zinc-805 dark:text-zinc-200">{paymentMethod === 'crypto' ? `$${actualAmountDue}` : `Rs. ${actualAmountDue * 300}`}</strong>, then enter transfer details below.
+                      Please copy the ID above, complete your transfer of <strong className="text-zinc-800 dark:text-zinc-200">{paymentMethod === 'crypto' ? `$${actualAmountDue}` : `Rs. ${actualAmountDue * 300}`}</strong>, then enter transfer details below.
                     </p>
                   </div>
 
+                  {/* Client Payment Verification Inputs */}
                   <div className="space-y-3">
                     <div>
                       <label className="block text-[10px] font-mono text-zinc-405 dark:text-zinc-400 uppercase tracking-wide mb-1">
@@ -325,11 +398,11 @@ export default function CheckoutModal({
                         value={clientWalletId}
                         onChange={(e) => setClientWalletId(e.target.value)}
                         placeholder={paymentMethod === 'crypto' ? '0x...' : '03xx xxx xxxx'}
-                        className="w-full text-xs p-3 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-850 rounded-xl outline-none focus:border-indigo-505 text-zinc-900 dark:text-white transition-colors"
+                        className="w-full text-xs p-3 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-805 rounded-xl outline-none focus:border-indigo-500 text-zinc-900 dark:text-white transition-colors"
                       />
                     </div>
                     <div>
-                      <label className="block text-[10px] font-mono text-zinc-405 dark:text-zinc-405 uppercase tracking-wide mb-1">
+                      <label className="block text-[10px] font-mono text-zinc-405 dark:text-zinc-400 uppercase tracking-wide mb-1">
                         Transaction ID / Reference TxID
                       </label>
                       <input
@@ -339,10 +412,14 @@ export default function CheckoutModal({
                         value={transactionId}
                         onChange={(e) => setTransactionId(e.target.value)}
                         placeholder="TRX-9876543210-REF"
-                        className="w-full text-xs p-3 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-850 rounded-xl outline-none focus:border-indigo-505 text-zinc-900 dark:text-white transition-colors"
+                        className="w-full text-xs p-3 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-805 rounded-xl outline-none focus:border-indigo-500 text-zinc-900 dark:text-white transition-colors"
                       />
                     </div>
                   </div>
+                </div>
+              ) : actualAmountDue > 0 ? (
+                <div className="p-4 bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl text-center text-xs">
+                    Please transfer amount to the CRYPTO wallet provided after submission.
                 </div>
               ) : (
                 <div className="p-3 bg-indigo-50/40 dark:bg-indigo-950/25 border border-indigo-100 dark:border-indigo-900/50 rounded-xl text-left">
@@ -382,25 +459,84 @@ export default function CheckoutModal({
             <div className="flex justify-center items-center gap-1.5 text-[10px] text-zinc-400">
               <span>🔒 PCI-DSS Compliant Encryption Standard</span>
             </div>
+
           </form>
         ) : step === 'pending' ? (
+          /* PENDING STATE PANEL */
           <div className="p-6 text-center space-y-5 overflow-y-auto flex-1 min-h-0">
-            <div className="w-12 h-12 rounded-full bg-amber-100 dark:bg-amber-955/60 text-amber-600 dark:text-amber-400 flex items-center justify-center mx-auto">
-              <Loader2 className="w-7 h-7 animate-spin" />
+            <div className="w-14 h-14 rounded-full bg-amber-500/10 text-amber-500 flex items-center justify-center mx-auto ring-4 ring-amber-500/5">
+              <Loader2 className="w-8 h-8 animate-spin stroke-[2.5]" />
             </div>
-            <h2 className="text-lg font-sans font-bold text-zinc-900 dark:text-white">Transaction Pending</h2>
-            <p className="text-xs text-zinc-500 dark:text-zinc-400 max-w-sm mx-auto">
-              Your payment is being verified by the administrator. Please wait. You will be notified once complete.
-            </p>
-            <button
-              onClick={onClose}
-              className="text-xs text-zinc-400 hover:text-zinc-650 hover:underline cursor-pointer"
-            >
-              Close
-            </button>
+            
+            <div className="space-y-1.5">
+              <h2 className="text-xl font-sans font-black text-zinc-900 dark:text-white uppercase tracking-tight">Transaction Pending</h2>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400 max-w-sm mx-auto leading-relaxed">
+                Thank you! Your payment verification proof has been transmitted and is now awaiting administrator review.
+              </p>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-900/40 border border-zinc-150 dark:border-zinc-850 text-left space-y-2.5 text-xs font-sans">
+              <div className="flex justify-between border-b border-zinc-100 dark:border-zinc-900/60 pb-1.5 font-mono text-[10px] uppercase text-zinc-400">
+                <span>Verification Receipt</span>
+                <span className="text-amber-500 font-bold">Awaiting Audit</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-zinc-500">Receiver Email:</span>
+                <span className="font-semibold text-zinc-850 dark:text-white">mrflop786@gmail.com</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-zinc-500">Sender Email:</span>
+                <span className="font-mono text-zinc-850 dark:text-white truncate max-w-[190px]">{email}</span>
+              </div>
+              {paymentMethod !== 'card' && clientWalletId && (
+                <div className="flex justify-between">
+                  <span className="text-zinc-500">Sender Wallet/Account:</span>
+                  <span className="font-mono text-zinc-850 dark:text-white truncate max-w-[190px]">{clientWalletId}</span>
+                </div>
+              )}
+              {paymentMethod !== 'card' && transactionId && (
+                <div className="flex justify-between">
+                  <span className="text-zinc-500">Transaction ID:</span>
+                  <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400 truncate max-w-[195px] select-all">{transactionId}</span>
+                </div>
+              )}
+              <div className="flex justify-between pt-1.5 border-t border-zinc-100 dark:border-zinc-900/60 font-bold">
+                <span className="text-zinc-900 dark:text-zinc-200 font-sans">Total Transferred:</span>
+                <span className="text-indigo-600 dark:text-indigo-400 font-mono">
+                  {paymentMethod === 'card' ? `$${actualAmountDue}` : `Rs. ${actualAmountDue * 300}`}
+                </span>
+              </div>
+            </div>
+
+            <div className="bg-amber-500/5 border border-amber-500/10 p-3.5 rounded-xl text-left text-[11px] text-amber-600 dark:text-amber-400/95 leading-relaxed font-sans">
+              🔒 <strong>Escrow Guarantee:</strong> Admins review and match transaction proofs dynamically. Typical confirmation of the source file download unlocks takes between 5 to 15 minutes. Once checked, the dynamic downloads will instantly unlock on your dashboard registers.
+            </div>
+
+            <div className="pt-2 border-t border-zinc-150 dark:border-zinc-905 flex flex-col gap-2">
+              <button
+                onClick={() => {
+                  onClose();
+                  // Open dashboard where products they purchased can be monitored
+                  const dashboardTrig = document.getElementById('user-dashboard-trigger');
+                  if (dashboardTrig) dashboardTrig.click();
+                }}
+                className="w-full py-2.5 bg-zinc-950 hover:bg-zinc-850 dark:bg-white dark:text-zinc-950 font-sans font-bold text-xs sm:text-sm rounded-xl cursor-pointer transition-all"
+              >
+                Go to Dashboard
+              </button>
+
+              <button
+                onClick={onClose}
+                className="text-xs text-zinc-400 hover:text-zinc-650 dark:hover:text-zinc-200 hover:underline cursor-pointer py-1.5"
+              >
+                Return to Assets Catalogue
+              </button>
+            </div>
           </div>
         ) : (
+          /* SUCCESS STATE PANEL */
           <div className="p-6 text-center space-y-5 overflow-y-auto flex-1 min-h-0">
+            
             <div className="space-y-2">
               <div className="w-12 h-12 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto">
                 <CheckCircle className="w-7 h-7" />
@@ -409,11 +545,12 @@ export default function CheckoutModal({
               <p className="text-xs text-zinc-500 dark:text-zinc-400 max-w-sm mx-auto">
                 Your secure licenses have been written and attached. Check your digital dashboard to view, copy, or reload links.
               </p>
-              
-              <div className="space-y-3 text-left">
-                <span className="text-[10px] font-mono text-zinc-400 uppercase tracking-widest pl-1">Direct Download Links</span>
-                <div className="space-y-2.5">
-                  {cart.map(item => (
+                       {/* Generated Unlocked Assets */}
+            <div className="space-y-3 text-left">
+              <span className="text-[10px] font-mono text-zinc-400 uppercase tracking-widest pl-1">Secure Delivery Gateway</span>
+              <div className="space-y-2.5">
+                {cart.map(item => {
+                  return (
                     <div
                       key={item.product.id}
                       className="p-3 bg-zinc-50 dark:bg-zinc-900 border border-zinc-150 dark:border-zinc-850 rounded-xl"
@@ -422,35 +559,37 @@ export default function CheckoutModal({
                         <span className="text-xs font-bold text-zinc-900 dark:text-zinc-50 truncate max-w-[285px]">{item.product.title}</span>
                       </div>
 
-                      <div className="bg-white dark:bg-zinc-950 p-2.5 rounded-lg border border-zinc-200 dark:border-zinc-850 text-[10px] font-mono mb-2 break-all text-indigo-600 dark:text-indigo-400 shadow-inner">
-                        <span className="text-zinc-400 block mb-0.5 text-[9px] uppercase tracking-wider">Direct URL:</span>
-                        <a href={item.product.downloadUrl} target="_blank" rel="noopener noreferrer" className="hover:underline break-all">
-                          {item.product.downloadUrl}
-                        </a>
+                      {/* Notice displaying dispatch updates */}
+                      <div className="bg-white dark:bg-zinc-950 p-2.5 rounded-lg border border-zinc-200 dark:border-zinc-850 text-[10px] font-sans mb-2 text-zinc-650 dark:text-zinc-300 shadow-inner">
+                        <span className="text-zinc-400 block mb-0.5 text-[9px] uppercase tracking-mono tracking-wider font-mono">Admin Notification:</span>
+                        <span>This asset will be sent directly to your email address by the administrator. Click the button below to notify.</span>
                       </div>
 
+                      {/* Download Link anchor replaced with Gmail Mailto compose */}
                       <a
                         id={`direct-dl-${item.product.id}`}
-                        href={item.product.downloadUrl}
+                        href={`mailto:aneesabid0012@gmail.com?subject=Asset%20Purchase%20Delivery%3A%20${encodeURIComponent(item.product.title)}&body=Hello%20Admin%2C%0A%0AI%20have%20ordered%20"${encodeURIComponent(item.product.title)}".%20Please%20deliver%20the%20digital%20materials%20to%20my%20registered%20email%20address%20as%20soon%2520as%2520possible.%0A%0AThank%20you!`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="w-full inline-flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-555 text-white text-xs font-sans font-semibold py-2 px-3 rounded-lg transition-colors cursor-pointer"
+                        className="w-full inline-flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-sans font-semibold py-2 px-3 rounded-lg transition-colors cursor-pointer"
                       >
                         <Download className="w-3.5 h-3.5" />
-                        <span>Instant Download Link</span>
+                        <span>Gmail send for admin</span>
                         <ExternalLink className="w-3 h-3" />
                       </a>
                     </div>
-                  ))}
-                </div>
+                  );
+                })}
               </div>
-            </div>
+            </div>   </div>
 
+            {/* Quick close redirect buttons */}
             <div className="pt-3 border-t border-zinc-150 dark:border-zinc-900 flex flex-col gap-2">
               <button
                 id="success-dashboard-cta"
                 onClick={() => {
                   onClose();
+                  // Trigger open dashboard which displays downloads
                   const dashboardTrig = document.getElementById('user-dashboard-trigger');
                   if (dashboardTrig) dashboardTrig.click();
                 }}
@@ -466,8 +605,10 @@ export default function CheckoutModal({
                 Close & Return to Assets Catalogue
               </button>
             </div>
+
           </div>
         )}
+
       </motion.div>
     </div>
   );

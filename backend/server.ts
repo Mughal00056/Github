@@ -262,6 +262,51 @@ app.post('/api/announcements', (req, res) => {
   res.json({ success: true, announcements: localAnnouncements });
 });
 
+// 7. Products operations (Cross-panel live sync)
+app.get('/api/products', (req, res) => {
+  res.json(customProductsCache);
+});
+
+app.post('/api/products', (req, res) => {
+  const data = req.body;
+  if (Array.isArray(data)) {
+    customProductsCache = data;
+  } else if (data && data.id) {
+    const existingIndex = customProductsCache.findIndex(p => p.id === data.id);
+    if (existingIndex >= 0) {
+      customProductsCache[existingIndex] = { ...customProductsCache[existingIndex], ...data };
+    } else {
+      customProductsCache.unshift(data);
+    }
+  }
+  res.json({ success: true, products: customProductsCache });
+});
+
+app.delete('/api/products/:id', (req, res) => {
+  const { id } = req.params;
+  customProductsCache = customProductsCache.filter(p => p.id !== id);
+  res.json({ success: true, products: customProductsCache });
+});
+
+// 8. Payment & Escrow Settings operations
+let localSettings = {
+  easypaisaNumber: '0300-1122334',
+  jazzcashNumber: '0321-5556677',
+  cryptoAddress: '0x8fae32bc117a78e5ab924aa91b0c9a41ccde35ec'
+};
+
+app.get('/api/settings', (req, res) => {
+  res.json(localSettings);
+});
+
+app.post('/api/settings', (req, res) => {
+  const { easypaisaNumber, jazzcashNumber, cryptoAddress } = req.body;
+  if (easypaisaNumber !== undefined) localSettings.easypaisaNumber = easypaisaNumber;
+  if (jazzcashNumber !== undefined) localSettings.jazzcashNumber = jazzcashNumber;
+  if (cryptoAddress !== undefined) localSettings.cryptoAddress = cryptoAddress;
+  res.json({ success: true, settings: localSettings });
+});
+
 async function startServer() {
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({

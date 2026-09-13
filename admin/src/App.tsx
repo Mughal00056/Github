@@ -7,10 +7,11 @@ export default function App() {
   const [currentPath, setCurrentPath] = useState<string>(() => window.location.pathname || '/admin');
   
   const [products, setProducts] = useState<Product[]>(() => {
-    const cached = localStorage.getItem('aether-products');
+    const cached = localStorage.getItem('cached_products') || localStorage.getItem('aether-products');
     if (cached) {
       try {
-        return JSON.parse(cached);
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       } catch (e) {
         return INITIAL_PRODUCTS;
       }
@@ -39,6 +40,7 @@ export default function App() {
   const handleProductsUpdated = (updatedProducts: Product[]) => {
     setProducts(updatedProducts);
     localStorage.setItem('aether-products', JSON.stringify(updatedProducts));
+    localStorage.setItem('cached_products', JSON.stringify(updatedProducts));
   };
 
   return (

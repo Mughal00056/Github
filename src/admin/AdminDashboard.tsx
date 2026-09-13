@@ -10,6 +10,7 @@ import { db, auth, updatePurchaseStatus, getPaymentDetails, updatePaymentDetails
 import { collection, getDocs, doc, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { Product, Review, DownloadProvider } from '../types';
 import { INITIAL_PRODUCTS } from '../data';
+import { broadcastAdminChange } from '../sync';
 
 interface AdminDashboardProps {
   currentPath: string;
@@ -288,7 +289,9 @@ export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin,
 
     setProducts(updatedList);
     localStorage.setItem('cached_products', JSON.stringify(updatedList));
+    localStorage.setItem('aether-products', JSON.stringify(updatedList));
     onProductsUpdated(updatedList);
+    broadcastAdminChange('PRODUCTS_UPDATED', updatedList);
 
     if (isCloudSynced) {
       alert(`Product "${newProduct.title}" has been successfully logged on the cloud catalog.`);
@@ -367,7 +370,10 @@ export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin,
     const updatedList = products.filter(p => p.id !== id);
     setProducts(updatedList);
     localStorage.setItem('cached_products', JSON.stringify(updatedList));
+    localStorage.setItem('aether-products', JSON.stringify(updatedList));
     onProductsUpdated(updatedList);
+    broadcastAdminChange('PRODUCTS_UPDATED', updatedList);
+    fetch(`/api/products/${id}`, { method: 'DELETE' }).catch(() => {});
 
     if (isCloudSynced) {
       alert("Product code-key successfully deleted from database index.");
@@ -482,14 +488,17 @@ export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin,
       });
       if (res.ok) {
         const data = await res.json();
-        setCategories([...categories, data.category]);
-        localStorage.setItem('cached_categories', JSON.stringify([...categories, data.category]));
+        const updated = [...categories, data.category];
+        setCategories(updated);
+        localStorage.setItem('cached_categories', JSON.stringify(updated));
+        broadcastAdminChange('CATEGORIES_UPDATED', updated);
         setNewCategoryName('');
         setNewCategoryImage('');
         alert("New asset category category added.");
       } else {
         setCategories(nextCategories);
         localStorage.setItem('cached_categories', JSON.stringify(nextCategories));
+        broadcastAdminChange('CATEGORIES_UPDATED', nextCategories);
         setNewCategoryName('');
         setNewCategoryImage('');
         alert("New asset category category added.");
@@ -508,6 +517,7 @@ export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin,
       await fetch(`/api/categories/${name}`, { method: 'DELETE' }).catch(err => console.warn(err));
       setCategories(nextCategories);
       localStorage.setItem('cached_categories', JSON.stringify(nextCategories));
+      broadcastAdminChange('CATEGORIES_UPDATED', nextCategories);
     } catch (err) {
       console.warn(err);
     }
@@ -529,11 +539,13 @@ export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin,
       if (res.ok) {
         setAnnouncements(nextList);
         localStorage.setItem('cached_announcements', JSON.stringify(nextList));
+        broadcastAdminChange('ANNOUNCEMENTS_UPDATED', nextList);
         setNewAnnouncementText('');
         alert("Top bar announcement promo banner added successfully!");
       } else {
         setAnnouncements(nextList);
         localStorage.setItem('cached_announcements', JSON.stringify(nextList));
+        broadcastAdminChange('ANNOUNCEMENTS_UPDATED', nextList);
         setNewAnnouncementText('');
         alert("Top bar announcement promo banner added!");
       }
@@ -556,10 +568,12 @@ export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin,
       if (res.ok) {
         setAnnouncements(nextList);
         localStorage.setItem('cached_announcements', JSON.stringify(nextList));
+        broadcastAdminChange('ANNOUNCEMENTS_UPDATED', nextList);
         alert("Announcement header promo ticker erased.");
       } else {
         setAnnouncements(nextList);
         localStorage.setItem('cached_announcements', JSON.stringify(nextList));
+        broadcastAdminChange('ANNOUNCEMENTS_UPDATED', nextList);
         alert("Announcement header promo ticker erased.");
       }
     } catch (err) {
@@ -582,11 +596,13 @@ export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin,
       if (res.ok) {
         setAnnouncements(nextList);
         localStorage.setItem('cached_announcements', JSON.stringify(nextList));
+        broadcastAdminChange('ANNOUNCEMENTS_UPDATED', nextList);
         setEditingAnnounceIdx(null);
         alert("Dynamic header banner edited successfully!");
       } else {
         setAnnouncements(nextList);
         localStorage.setItem('cached_announcements', JSON.stringify(nextList));
+        broadcastAdminChange('ANNOUNCEMENTS_UPDATED', nextList);
         setEditingAnnounceIdx(null);
         alert("Dynamic header banner edited.");
       }
@@ -647,6 +663,9 @@ export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin,
                            updates.paymentStatus === 'not-ready' ? 'not-ready' : 'pending';
         
         await updatePurchaseStatus(matchedOrder.userEmail, orderId, nextStatus).catch(e => console.warn(e));
+        broadcastAdminChange('ORDERS_UPDATED', { orderId, nextStatus, userEmail: matchedOrder.userEmail });
+      } else {
+        broadcastAdminChange('ORDERS_UPDATED', { orderId });
       }
 
       if (selectedOrder && selectedOrder.id === orderId) {
@@ -662,12 +681,14 @@ export default function AdminDashboard({ currentPath, onNavigate, onLogoutAdmin,
   const handleSaveSettings = async () => {
     try {
       localStorage.setItem('admin_escrow_settings', JSON.stringify(settings));
+      broadcastAdminChange('SETTINGS_UPDATED', settings);
       await updatePaymentDetails(settings);
       alert("Escrow account channels successfully updated and synced on the database.");
     } catch (err: any) {
       console.warn("Firestore settings update failed, saved locally:", err);
       // Fallback: update local storage so CheckoutModal can read it instantly!
       localStorage.setItem('admin_escrow_settings', JSON.stringify(settings));
+      broadcastAdminChange('SETTINGS_UPDATED', settings);
       alert("Escrow account details updated and saved locally! (Bypass active to override Firestore permission errors: " + err.message + ")");
     }
   };

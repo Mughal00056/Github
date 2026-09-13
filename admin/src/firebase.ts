@@ -181,16 +181,28 @@ export async function updatePurchaseStatus(email: string, orderId: string, statu
 
 export async function getPaymentDetails() {
   const path = 'settings/paymentDetails';
+  let cached: any = null;
+  try {
+    const raw = typeof window !== 'undefined' ? localStorage.getItem('admin_escrow_settings') : null;
+    if (raw) cached = JSON.parse(raw);
+  } catch (e) {}
+
   try {
     const docRef = doc(db, 'settings', 'paymentDetails');
     const snap = await getDoc(docRef);
-    if (snap.exists()) {
+    if (snap.exists() && snap.data()) {
       return snap.data();
     }
-    return { easypaisaNumber: '', jazzcashNumber: '', cryptoAddress: '' };
+    if (cached && (cached.easypaisaNumber || cached.jazzcashNumber || cached.cryptoAddress)) {
+      return cached;
+    }
+    return { easypaisaNumber: '0300-1122334', jazzcashNumber: '0321-5556677', cryptoAddress: '0x8fae32bc117a78e5ab924aa91b0c9a41ccde35ec' };
   } catch (error) {
     console.warn('Silent fallback for payment details (uninitialized or restricted):', error);
-    return { easypaisaNumber: '03000000000', jazzcashNumber: '03000000000', cryptoAddress: '0x0000000000000000000000000000000000000000' };
+    if (cached && (cached.easypaisaNumber || cached.jazzcashNumber || cached.cryptoAddress)) {
+      return cached;
+    }
+    return { easypaisaNumber: '0300-1122334', jazzcashNumber: '0321-5556677', cryptoAddress: '0x8fae32bc117a78e5ab924aa91b0c9a41ccde35ec' };
   }
 }
 

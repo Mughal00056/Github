@@ -13,6 +13,7 @@ import {
   ShieldAlert
 } from 'lucide-react';
 import { Product, CartItem, DownloadProvider } from '../types';
+import { listenToAdminChanges } from '../sync';
 
 interface CheckoutModalProps {
   isOpen: boolean;
@@ -56,17 +57,47 @@ export default function CheckoutModal({
   const [paymentDetails, setPaymentDetails] = useState<{ easypaisaNumber: string; jazzcashNumber: string; cryptoAddress: string }>({ easypaisaNumber: '', jazzcashNumber: '', cryptoAddress: '' });
 
   React.useEffect(() => {
+    // 1. Instant check from local cache
     const saved = localStorage.getItem('admin_escrow_settings');
     if (saved) {
       try {
-        setPaymentDetails(JSON.parse(saved));
+        const parsed = JSON.parse(saved);
+        if (parsed && (parsed.easypaisaNumber || parsed.jazzcashNumber || parsed.cryptoAddress)) {
+          setPaymentDetails(parsed);
+        }
       } catch (e) {}
     }
+
+    // 2. Fetch from backend API
+    fetch('/api/settings')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data && (data.easypaisaNumber || data.jazzcashNumber || data.cryptoAddress)) {
+          setPaymentDetails(data);
+          localStorage.setItem('admin_escrow_settings', JSON.stringify(data));
+        }
+      })
+      .catch(() => {});
+
+    // 3. Query Firebase database
     import('../firebase').then(f => f.getPaymentDetails()).then(res => {
       if (res && (res.easypaisaNumber || res.jazzcashNumber || res.cryptoAddress)) {
         setPaymentDetails(res);
       }
     });
+
+    // 4. Subscribe to live Admin changes (inter-tab broadcast & window events)
+    const unsub = listenToAdminChanges({
+      onSettings: (liveSettings) => {
+        if (liveSettings) {
+          setPaymentDetails(liveSettings);
+        }
+      }
+    });
+
+    return () => {
+      unsub();
+    };
   }, []);
 
   if (!isOpen) return null;

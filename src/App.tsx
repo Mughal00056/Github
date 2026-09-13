@@ -38,6 +38,7 @@ import Dashboard from './components/Dashboard';
 import AuthModal from './components/AuthModal';
 import AdminDashboard from './admin/AdminDashboard';
 import { db, syncUserProfile, getUserProfile, recordPurchase, getUserPurchases, logoutUser, getFirebaseAnnouncements, getFirebaseCategories } from './firebase';
+import { listenToAdminChanges } from './sync';
 
 const CIRCLE_CATEGORIES = [
   { name: 'All', image: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&q=80&w=150&h=150' },
@@ -57,10 +58,13 @@ export default function App() {
 
   // Products Data
   const [products, setProducts] = useState<Product[]>(() => {
-    const cached = localStorage.getItem('aether-products');
+    const cached = localStorage.getItem('cached_products') || localStorage.getItem('aether-products');
     if (cached) {
       try {
-        return JSON.parse(cached);
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
       } catch (e) {
         return INITIAL_PRODUCTS;
       }
@@ -333,8 +337,21 @@ export default function App() {
     loadCategories();
   }, []);
 
-  // Real-time synchronization of products with Firestore database
+  // Real-time synchronization of products with Firestore database and backend API
   useEffect(() => {
+    // 1. Fetch from server API in case server has latest products
+    fetch('/api/products')
+      .then(r => r.ok ? r.json() : null)
+      .then(serverProds => {
+        if (Array.isArray(serverProds) && serverProds.length > 0) {
+          setProducts(serverProds);
+          localStorage.setItem('cached_products', JSON.stringify(serverProds));
+          localStorage.setItem('aether-products', JSON.stringify(serverProds));
+        }
+      })
+      .catch(() => {});
+
+    // 2. Real-time Firestore snapshot
     let unsubscribe: () => void = () => {};
     const initProductsSync = async () => {
       try {
@@ -347,8 +364,8 @@ export default function App() {
               liveList.push({ id: doc.id, ...doc.data() } as Product);
             });
             setProducts(liveList);
-          } else {
-            setProducts(INITIAL_PRODUCTS);
+            localStorage.setItem('cached_products', JSON.stringify(liveList));
+            localStorage.setItem('aether-products', JSON.stringify(liveList));
           }
         }, (err) => {
           console.warn("Firestore products snapshot listener error:", err);
@@ -358,8 +375,29 @@ export default function App() {
       }
     };
     initProductsSync();
+
+    // 3. Listen to instant Admin panel broadcasts (same tab or other tabs/windows)
+    const unsubAdminSync = listenToAdminChanges({
+      onProducts: (liveProducts) => {
+        if (Array.isArray(liveProducts)) {
+          setProducts(liveProducts);
+        }
+      },
+      onCategories: (liveCategories) => {
+        if (Array.isArray(liveCategories)) {
+          setCategories(liveCategories);
+        }
+      },
+      onAnnouncements: (liveAnnouncements) => {
+        if (Array.isArray(liveAnnouncements)) {
+          setAnnouncements(liveAnnouncements);
+        }
+      }
+    });
+
     return () => {
       unsubscribe();
+      unsubAdminSync();
     };
   }, []);
 
@@ -377,6 +415,7 @@ export default function App() {
   // Synchronizers to local storage
   useEffect(() => {
     localStorage.setItem('aether-products', JSON.stringify(products));
+    localStorage.setItem('cached_products', JSON.stringify(products));
   }, [products]);
 
   useEffect(() => {
@@ -413,6 +452,28 @@ export default function App() {
               return p;
             });
 
+            // If myOrders has completed/approved items that aren't yet in purchasedProducts, add them
+            myOrders.forEach((o: any) => {
+              if (Array.isArray(o.items)) {
+                o.items.forEach((item: any) => {
+                  const alreadyExists = nextPurchased.some((p: any) => p.productId === item.id || p.orderId === o.id);
+                  if (!alreadyExists) {
+                    needsUpdate = true;
+                    nextPurchased.push({
+                      id: `purch-${o.id}-${item.id}`,
+                      orderId: o.id,
+                      productId: item.id,
+                      productTitle: item.title || 'Digital Asset',
+                      amountPaid: item.price || 0,
+                      purchaseDate: o.date ? o.date.split('T')[0] : new Date().toISOString().split('T')[0],
+                      token: `LIC-${Math.random().toString(36).substring(2, 8).toUpperCase()}`,
+                      status: o.paymentStatus === 'paid' ? 'completed' : o.paymentStatus === 'not-ready' ? 'not-ready' : 'pending'
+                    });
+                  }
+                });
+              }
+            });
+
             if (needsUpdate) {
               setUser(prev => ({
                 ...prev,
@@ -428,7 +489,16 @@ export default function App() {
 
     syncPendingOrderStatuses();
     const timer = setInterval(syncPendingOrderStatuses, 3000);
-    return () => clearInterval(timer);
+    const unsubOrderBroadcast = listenToAdminChanges({
+      onOrders: () => {
+        syncPendingOrderStatuses();
+      }
+    });
+
+    return () => {
+      clearInterval(timer);
+      unsubOrderBroadcast();
+    };
   }, [user.isLoggedIn, user.email, user.purchasedProducts]);
 
   // Reset side menu view when it closes
@@ -973,6 +1043,7 @@ export default function App() {
         onProductsUpdated={(pList) => {
           setProducts(pList);
           localStorage.setItem('aether-products', JSON.stringify(pList));
+          localStorage.setItem('cached_products', JSON.stringify(pList));
         }}
       />
     );
